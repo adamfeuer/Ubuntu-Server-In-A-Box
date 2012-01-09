@@ -60,7 +60,7 @@ def setup_init(update=True): # {{{
     # I like to have the latest vim and
     # I like to have a nice vim config
     aptget_vim73()
-    install_vim_config()
+    #install_vim_config()
 
 # }}}
 def setup_server(): # {{{
@@ -73,11 +73,11 @@ def setup_server(): # {{{
 
     #setup_mail_server()
 
-    setup_git_server()
+    #setup_git_server()
     #setup_svn_server()
 
     setup_python() # includes virtualenv, django and wsgi
-    setup_ruby()   # includes rvm, rails and passenger
+    #setup_ruby()   # includes rvm, rails and passenger
 
 # }}}
 def clean_all(): # {{{
@@ -485,25 +485,17 @@ def restore_webroot(): # {{{
 # }}}
 def install_webroot(): # {{{
     """
-    Create initial webroot directory layout for Apache, Django and Rails
-
-    Sets up the initial outline for the main web server root directory.
-    The way I like it is split in to three sections one for apache/php
-    and two others for python and ruby (rails and django) projects.
+    Create initial webroot directory layout for Apache and Django
 
     The currently installed folders are
 
     * ``webroot/apache``
-    * ``webroot/django``
-    * ``webroot/rails``
     """
     env.host_string = root_host
 
     backup_webroot()
     run('if [ -e "'+webroot_dir+'" ]; then rm -rf '+webroot_dir+'; fi')
     run('mkdir -p '+webroot_dir+'/apache')
-    run('mkdir -p '+webroot_dir+'/django')
-    run('mkdir -p '+webroot_dir+'/rails')
 
     # allow team and web server to edit files in webroot
     configure_open_share(deploy_username, server_groupname, webroot_dir)
