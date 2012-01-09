@@ -59,7 +59,7 @@ def setup_init(update=True): # {{{
 
     # I like to have the latest vim and
     # I like to have a nice vim config
-    aptget_vim73()
+    #aptget_vim73()
     #install_vim_config()
 
 # }}}
