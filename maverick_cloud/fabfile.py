@@ -955,7 +955,7 @@ def aptget_misc_deps(): # {{{
     """
     env.host_string = root_host
     run('apt-get update')
-    run('yes | apt-get install python-software-properties mlocate tmux ncurses-term')
+    run('yes | apt-get install python-software-properties mlocate tmux ncurses-term curl')
 # }}}
 
 # }}}
