@@ -8,10 +8,6 @@ print "========================================="
 from settings import *
 
 # Download URLs and other settings {{{
-rubygems_url = 'http://production.cf.rubygems.org/rubygems'
-rubygems_vers = 'rubygems-1.6.2'
-rubygems_tarball = 'rubygems-1.6.2.tgz'
-
 pypi_url = 'http://pypi.python.org/packages/source'
 pip_vers = 'pip-0.8.2'
 pip_url  = pypi_url+'/p/pip/'+pip_vers+'.tar.gz'
@@ -57,11 +53,6 @@ def setup_init(update=True): # {{{
     aptget_compiler()
     aptget_common_dev_headers()
 
-    # I like to have the latest vim and
-    # I like to have a nice vim config
-    #aptget_vim73()
-    #install_vim_config()
-
 # }}}
 def setup_server(): # {{{
     """
@@ -71,14 +62,7 @@ def setup_server(): # {{{
     setup_apache()
     setup_nginx()
     setup_webapps_location(root_host)
-
-    #setup_mail_server()
-
-    #setup_git_server()
-    #setup_svn_server()
-
     setup_python() # includes virtualenv, django and wsgi
-    #setup_ruby()   # includes rvm, rails and passenger
 
 # }}}
 def clean_all(): # {{{
@@ -94,7 +78,6 @@ def clean_all(): # {{{
     clean_webroot()
     clean_apache()
     clean_nginx()
-    clean_gitolite()
 
 # }}}
 
@@ -156,31 +139,8 @@ def setup_nginx(): # {{{
     install_nginx_config()
 
 # }}}
-def setup_mail_server(): # {{{
-    aptget_mail_server()
-    install_postfix_dovecot_config()
 
-# }}}
-
-# Version Control
-def setup_git_server(): # {{{
-    """
-    Installs and configures web, mail and git servers
-    """
-    aptget_git_server()
-    install_gitolite_config()
-
-# }}}
-def setup_svn_server(): # {{{
-    """
-    Installs and configures subversion and apache svn server
-    """
-    aptget_svn_server()
-    #install_webdav_config()
-
-# }}}
-
-# Python and Ruby
+# Python
 def setup_python(target_host=deploy_host): # {{{
     """
     Installs python, virtualenv and WSGI.
@@ -199,31 +159,6 @@ def setup_python(target_host=deploy_host): # {{{
 
     # install the wsgi apache module and the standalone uwsgi
     aptget_mod_wsgi()
-    #aptget_uwsgi()
-
-    # install the common pip modules for django apps like django-cms
-    #install_sys_djangocms()
-
-# }}}
-def setup_ruby(target_host=deploy_host): # {{{
-    """
-    Installs rails and passenger.
-    
-    Installs  system  ruby   with  compatibility  rails,  recent
-    rubygems and rvm for deploy user with latest rails.
-    """
-    aptget_ruby()
-
-    # latest gems, but system wide
-    install_rubygems()
-
-    # install rails server for apache
-    install_rails_server()
-    install_mod_passenger_gem()
-
-    # rvm installs
-    install_rvm(target_host)
-    install_rvm_rails_server(target_host)
 
 # }}}
 
@@ -411,48 +346,6 @@ def clean_etc_skel(): # {{{
 
 # }}}
 
-# vim config
-def install_vim_config(): # {{{
-    """
-    Install custom vim configuration
-
-    Try to install our custom vim configuration in the main system 
-    for all users.
-    """
-    env.host_string = root_host
-
-    if len(vim_config_tarball_url):
-        # get nice vim configuration
-        with settings(hide('warnings'), warn_only=True):
-            if run('wget '+vim_config_tarball_url).succeeded:
-                filename = os.path.basename(vim_config_tarball_url)
-                run('tar -zxf '+filename)
-
-                run('rm -rf /usr/share/vim/vimfiles')
-
-                # install the vim configuration system wide
-                run('mv .vimrc /etc/vim/vimrc.local')
-                run('mv .vim /usr/share/vim/vimfiles')
-
-                # cleanup
-                run('rm -rf '+filename)
-
-# }}}
-def clean_vim_config(): # {{{
-    """
-    Delete the custom system wide vim config files if they exist
-    """
-    env.host_string = root_host
-
-    vimfiles = '/usr/share/vim/vimfiles'
-    vimrc    = '/etc/vim/vimrc.local'
-
-    run('if [ -d '+vimfiles+' ]; then rm -rf '+vimfiles+'; fi')
-    run('if [ -d '+vimrc+' ]; then rm -rf '+vimrc+'; fi')
-
-    run('if [ ! -e /usr/share/vim/vimfiles ]; then ln -s /etc/vim /usr/share/vim/vimfiles; fi')
-# }}}
-
 # }}}
 # Servers {{{
 def backup_webroot(): # {{{
@@ -564,15 +457,6 @@ def install_apache_config(): # {{{
         # by default we don't run apache behind nginx for now
         run('rm -rf default-ssl-nginx')
 
-    # at least install skeleton outline dirs for the vhosts
-    run('mkdir -p '+webroot_dir+'/apache/localhost/public')
-    run('mkdir -p '+webroot_dir+'/apache/generator.'+server_domain+'/public')
-    run('mkdir -p '+webroot_dir+'/apache/django.'+server_domain+'/public')
-    run('mkdir -p '+webroot_dir+'/apache/rails.'+server_domain+'/public')
-
-    # set this up later?
-    upload_website_apache_localhost()
-
     # re-chown the webroot since we uploaded localhost as root
     configure_open_share(deploy_username, server_groupname, webroot_dir)
 
@@ -644,104 +528,6 @@ def install_nginx_config(): # {{{
     run('service nginx restart')
 
 # }}}
-def install_gitolite_config(): # {{{
-    """
-    Initializes and sets up the gitolite server
-
-    Installs and a basic git server adds your repos and gives
-    your developers access to those repos. There's no backup
-    fab task because there are never any repos to begin with,
-    you may however wish to run the ``clean_gitolite`` task
-    which deletes any and all files that the gitolite setup
-    adds to its home directory.
-    """
-    env.host_string = deploy_host
-
-    # create key pair for deploy user for doing checkouts
-    with settings(hide('warnings'), warn_only=True):
-        run('no | ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa')
-    deploy_ssh_rsa = run('cat ~/.ssh/id_rsa.pub')
-    local_ssh_rsa  = local('cat ~/.ssh/id_rsa.pub', capture=True)
-
-    # setup gitolite user and repositories
-    env.host_string = root_host
-
-    # gitolite is very adamant in its desires to run as its own independent
-    # user which is added when gitolite is installed. thusly we must first
-    # enable shell access so we can log in as the gitolite user
-    clone_root_pubkey('gitolite', '/var/lib/gitolite')
-
-    # set git user config on the server itself for the user we'll be working as
-    env.host_string = gitolite_host
-    run('git config --global user.name "'+gitolite_admin_name+'"')
-    run('git config --global user.email '+gitolite_admin_email)
-
-    # because gitolite makes some assumptions about how we'll be using ssh
-    # it does not like it if there is already a .ssh folder so we must
-    # delete the .ssh dir before running gl-setup to install
-    # the gitolite configuration.
-    #
-    # Deleting the .ssh folder, obviously will lock us out, but the gitolite
-    # setup script by default requires a public key and will load this
-    # key so users can do repository checkouts. Gitolite does not, however
-    # grant shell access to its user account, so we must do that explicitly.
-    #
-    # We must do all these things at once to prevent being locked out between
-    # commands because fabric retrieves a new connection for each command
-    run("echo '"+local_ssh_rsa+"' > ~/"+gitolite_admin_user+".pub")
-    run('rm -rf .ssh && gl-setup ~/'+gitolite_admin_user+'.pub && yes "" | /usr/share/gitolite/gl-tool shell-add ~/'+gitolite_admin_user+'.pub')
-
-    # save original config information
-    git_local_name  = local('git config --global --get user.name', capture=True)
-    git_local_email = local('git config --global --get user.email', capture=True)
-
-    local('# SAVED CONFIG: '+git_local_name+' '+git_local_email)
-
-    local('git config --global user.name "'+gitolite_admin_name+'"')
-    local('git config --global user.email '+gitolite_admin_email)
-
-    # make a local dir for checking out the gitolite admin settings
-    local('mkdir -p '+gitolite_admin_local)
-    local('rm -rf '+gitolite_admin_local+'/gitolite-admin')
-
-    with lcd(gitolite_admin_local):
-        local('git clone '+gitolite_host+':gitolite-admin')
-
-    with lcd(gitolite_admin_local+'/gitolite-admin'):
-        # and add keys for users
-        local("echo '"+deploy_ssh_rsa+"' > keydir/"+deploy_username+".pub")
-
-    local('rm -rf '+gitolite_admin_local+'/gitolite-admin/conf/gitolite.conf')
-    local('cp '+local_config_dir+'/gitolite.conf '+gitolite_admin_local+'/gitolite-admin/conf')
-    local('cp '+local_config_dir+'/gitolite_repos.conf '+gitolite_admin_local+'/gitolite-admin/conf')
-
-    for name in git_repo_devteam:
-        with settings(hide('warnings'), warn_only=True):
-            if local('[ ! -e '+local_config_dir+'/keys/gitolite/'+name+'.pub ]').succeeded:
-                local('ssh-keygen -t rsa -N "" -f '+local_config_dir+'/keys/gitolite/'+name)
-
-            local('cp '+local_config_dir+'/keys/gitolite/'+name+'.pub '+gitolite_admin_local+'/gitolite-admin/keydir')
-
-    with lcd(gitolite_admin_local+'/gitolite-admin'):
-        local('git add .')
-        local('git commit -a -m "Added users"')
-        local('git push origin master')
-
-    # restore original config information
-    local('git config --global user.name "'+git_local_name+'"')
-    local('git config --global user.email '+git_local_email)
-
-# }}}
-def clean_gitolite_config(): # {{{
-    """
-    Delete the gitolite specific files for repositories and config and such
-    """
-    env.host_string = root_host
-
-    with cd('/var/lib/gitolite'):
-        run('rm -rf .gitolite .gitolite.rc projects.list repositories .cache *.pub .ssh')
-
-# }}}
 def upload_website_apache_localhost(host=root_host): # {{{
     """
     Uploads the actual publicly accessible files for the default localhost
@@ -758,23 +544,6 @@ def upload_website_apache_localhost(host=root_host): # {{{
     with cd(webroot_dir+'/apache/localhost'):
         run('tar -zxf public.tar.gz')
         run('rm -rf public.tar.gz')
-# }}}
-#def upload_website_apache_generatedata(): # {{{
-#    """
-#    Uploads the generatedata PHP app to its own vhost
-
-#    Installs the files for the generatedata PHP script in a virtual host.
-#    """
-#    run('mkdir -p '+webroot_dir+'/apache/generatedata.'+server_domain+'')
-#    put(local_tar_dir+'/apache/generatedata.'+server_domain+'/public.tar.gz', webroot_dir+'/apache/generatedata.'+server_domain+'')
-#    with cd(webroot_dir+'/apache/generatedata.'+server_domain+''):
-#        run('tar -zxf public.tar.gz')
-#        run('rm -rf public.tar.gz')
-#
-#    configure_open_share(deploy_username, server_groupname, webroot_dir)
-#
-## }}}
-
 # }}}
 # Aptget {{{
 def aptget_software_updates(): # {{{
@@ -806,22 +575,6 @@ def aptget_common_dev_headers(): # {{{
     run('yes | apt-get install libmysqlclient-dev libpq-dev libmagickwand-dev libxml2-dev libxslt1-dev python-dev ruby-dev libcurl4-openssl-dev')
 
 # }}}
-def aptget_git_server(): # {{{
-    """
-    Install git, the gitolite repo server and the gitweb frontend browser
-    """
-    env.host_string = root_host
-    run('yes | apt-get install git gitolite gitweb')
-
-# }}}
-def aptget_svn_server(): # {{{
-    """
-    Install subversion and apache plugin
-    """
-    env.host_string = root_host
-    run('yes | apt-get install subversion libapache2-svn')
-
-# }}}
 def aptget_databases(): # {{{
     """
     Install the common databases: MySQL, Postgres and SQLite
@@ -850,15 +603,6 @@ def a2enmod_rewrite(): # {{{
     run('service apache2 restart')
 
 # }}}
-def a2enmod_passenger(): # {{{
-    """
-    Enable the Passenger module for serving Ruby apps
-    """
-    env.host_string = root_host
-    run('a2enmod passenger')
-    run('service apache2 restart')
-
-# }}}
 def a2enmod_proxy(): # {{{
     """
     Enable the Proxy and Proxy HTTP modules
@@ -866,24 +610,6 @@ def a2enmod_proxy(): # {{{
     env.host_string = root_host
     run('a2enmod proxy')
     run('a2enmod proxy_http')
-    run('service apache2 restart')
-
-# }}}
-def aptget_ruby(): # {{{
-    """
-    Install the Ubuntu-packaged ruby from the main system including dev headers
-    """
-    env.host_string = root_host
-    run('yes | apt-get install ruby ri ruby-dev')
-
-# }}}
-def aptget_passenger(): # {{{
-    """
-    Install and enable the apache Passenger module for running ruby apps
-    """
-    env.host_string = root_host
-    run('yes | apt-get install libapache2-mod-passenger')
-    run('a2enmod passenger')
     run('service apache2 restart')
 
 # }}}
@@ -902,8 +628,6 @@ def aptget_nginx(): # {{{
     Update to the lates nginx repo and install nginx
     """
     env.host_string = root_host
-    #run('add-apt-repository ppa:nginx/development')
-    #run('yes | apt-get update')
     run('yes | apt-get install nginx-common nginx-extras')
 
 # }}}
@@ -912,8 +636,6 @@ def aptget_uwsgi(): # {{{
     Update to the latest uwsgi repo and install uwsgi
     """
     env.host_string = root_host
-    #run('add-apt-repository ppa:uwsgi/release')
-    #run('yes | apt-get update')
     run('yes | apt-get install uwsgi-python')
 
 # }}}
@@ -936,8 +658,6 @@ def aptget_vim73(): # {{{
     * ``par`` the paragraph formatter
     """
     env.host_string = root_host
-    #run('add-apt-repository ppa:ubuntu-backports-testers/ppa')
-    #run('yes | apt-get update')
     run('yes | apt-get install vim ctags par')
 
 # }}}
@@ -1028,115 +748,6 @@ def configure_python_virtualenv(target_host): # {{{
     run('echo \'source /usr/local/bin/virtualenvwrapper.sh\' >> ~/.bashrc')
 
 # }}}
-def install_sys_djangocms(): # {{{
-    """
-    Download and install Django CMS with pip
-
-    Add rvm capabilites to this user. Mostly this
-    just adds the config settings to the ~/.bashrc to
-    provide access to ``rvm``. This is only applicable
-    on a per user basis.
-    """
-    env.host_string = root_host
-
-    run('pip install '+' '.join(djangocms_deps))
-
-# }}}
-def install_env_djangocms(target_host=deploy_host, virtualenv='djangocms_test'): # {{{
-    """
-    Download and install RVM (the Ruby Version Manager)
-
-    Add rvm capabilites to this user. Mostly this
-    just adds the config settings to the ~/.bashrc to
-    provide access to ``rvm``. This is only applicable
-    on a per user basis.
-    """
-    env.host_string = target_host
-
-    with run('. ~/Envs/'+virtualenv+'/bin/activate'):
-        run('pip install '+' '.join(djangocms_deps))
-
-# }}}
-
-# }}}
-# Ruby {{{
-def install_rubygems(): # {{{
-    """
-    Download and install the latest rubygems system wide
-    """
-    env.host_string = root_host
-
-    with settings(hide('warnings'), warn_only=True):
-        if run('wget '+rubygems_url+'/'+rubygems_tarball).succeeded:
-            run('tar -zxf '+rubygems_tarball)
-            with cd(rubygems_vers):
-                run('ruby setup.rb')
-                run('ln -s /usr/bin/gem1.8 /usr/bin/gem')
-
-# }}}
-def install_rails_server(): # {{{
-    """
-    Download and install rails 2.3.8 system wide
-
-    Ruby  1.8  with  rails   2.3.8  keeps  the  main  server
-    compatible with radiantcms. Latest ruby and rails can be
-    found in rvm for the deploy user.
-    """
-    env.host_string = root_host
-
-    run('gem install passenger')
-    run('gem install rails --version 2.3.8')
-    run('gem install '+' '.join(rails_gem_deps))
-
-# }}}
-def install_mod_passenger_gem(): # {{{
-    """
-    Download and install the latest passenger gem into the system apache
-    """
-    env.host_string = root_host
-
-    run('passenger-install-apache2-module -a')
-    run('passenger-install-apache2-module --snippet | grep --color=none ^LoadModule > /etc/apache2/mods-available/passenger.load')
-    run('passenger-install-apache2-module --snippet | grep --color=none ^Passenger > /etc/apache2/mods-available/passenger.conf')
-
-    run('a2enmod passenger')
-    run('service apache2 restart')
-
-    # requires recompilation and so, means we can't use the ubuntu packaged nginx
-    #run('passenger-install-nginx-module')
-    #run('service nginx restart')
-
-# }}}
-def install_rvm(target_host=deploy_host): # {{{
-    """
-    Download and install RVM (the Ruby Version Manager) for a given user
-
-    Add rvm capabilites to this  user. Mostly this just adds
-    the config  settings to the ~/.bashrc  to provide access
-    to ``rvm``. This is only applicable on a per user basis.
-    """
-    env.host_string = target_host
-
-    run('bash < <( curl http://rvm.beginrescueend.com/releases/rvm-install-head )')
-    run('echo >> .bashrc')
-    run('echo \'[[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm"\' >> .bashrc')
-
-# }}}
-def install_rvm_rails_server(target_host=deploy_host): # {{{
-    """
-    Install Ruby 1.9.2 and Rails 3.x from rvm for the given user
-
-    Also installs a number of pretty standard desirably gems. Don't bother
-    with the XSLT lib because it's broken in 1.9.
-    """
-    env.host_string = target_host
-
-    run('rvm install 1.9.2')
-    with prefix('rvm 1.9.2'):
-        run('gem install passenger rails '+' '.join(rails_gem_deps[:-1]))
-
-# }}}
-
 # }}}
 
 
@@ -1156,7 +767,6 @@ def regen_configs(): # {{{
 
     * ``apache/vhost_templates``
     * ``nginx/vhost_templates``
-    * ``gitolite.conf.sample``
     """
     args = '_ "{}"'
 
@@ -1173,12 +783,6 @@ def regen_configs(): # {{{
 
     replacements = 'sed -e "s/SERVERADMINS/'+' '.join(git_repo_admins)+'/" | sed -e "s/SERVERDEVTEAM/'+' '.join(git_repo_devteam)+'/"'
     local('cat '+local_config_dir+'/gitolite.conf.sample | '+replacements+' > '+local_config_dir+'/gitolite.conf')
-
-    local("echo '# repos' > "+local_config_dir+"/gitolite_repos.conf")
-    for repo in git_hosted_repos:
-        local("echo >> "+local_config_dir+"/gitolite_repos.conf")
-        local("echo 'repo "+repo+"' >> "+local_config_dir+"/gitolite_repos.conf")
-        local("echo 'RW+  = @devteam' >> "+local_config_dir+"/gitolite_repos.conf")
 
 # }}}
 def regen_tarball(srcdir, source): # {{{
