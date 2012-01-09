@@ -20,7 +20,7 @@ pip_md5  = 'df1eca0abe7643d92b5222240bed15f6'
 root_host      =  'root@' + server_hostname
 gitolite_host  =  'gitolite@'+server_hostname
 main_host      =  main_username+'@'+server_hostname
-deploy_host    =  deploy_username+'@'+server_hostname
+deploy_host    =  deploy_username + '@'+server_hostname
 
 # pseudo inline-function for bash
 get_cur_timestamp = '$(date +%Y-%m-%d_%H%M%S)'
@@ -33,7 +33,7 @@ get_cur_timestamp = '$(date +%Y-%m-%d_%H%M%S)'
 
 def setup(update=True): # {{{
     """
-    Bootstrap an entire server from a blank rackspace Ubuntu 10.10 VPS
+    Bootstrap an entire server from a blank Ubuntu 11.10 Server distro
     """
     setup_init(update)
     setup_users()
@@ -70,6 +70,7 @@ def setup_server(): # {{{
     install_webroot()
     setup_apache()
     setup_nginx()
+    setup_webapps_location(root_host)
 
     #setup_mail_server()
 
@@ -198,10 +199,10 @@ def setup_python(target_host=deploy_host): # {{{
 
     # install the wsgi apache module and the standalone uwsgi
     aptget_mod_wsgi()
-    aptget_uwsgi()
+    #aptget_uwsgi()
 
     # install the common pip modules for django apps like django-cms
-    install_sys_djangocms()
+    #install_sys_djangocms()
 
 # }}}
 def setup_ruby(target_host=deploy_host): # {{{
@@ -902,7 +903,7 @@ def aptget_nginx(): # {{{
     """
     env.host_string = root_host
     #run('add-apt-repository ppa:nginx/development')
-    run('yes | apt-get update')
+    #run('yes | apt-get update')
     run('yes | apt-get install nginx-common nginx-extras')
 
 # }}}
@@ -912,7 +913,7 @@ def aptget_uwsgi(): # {{{
     """
     env.host_string = root_host
     #run('add-apt-repository ppa:uwsgi/release')
-    run('yes | apt-get update')
+    #run('yes | apt-get update')
     run('yes | apt-get install uwsgi-python')
 
 # }}}
@@ -936,7 +937,7 @@ def aptget_vim73(): # {{{
     """
     env.host_string = root_host
     #run('add-apt-repository ppa:ubuntu-backports-testers/ppa')
-    run('yes | apt-get update')
+    #run('yes | apt-get update')
     run('yes | apt-get install vim ctags par')
 
 # }}}
@@ -999,6 +1000,18 @@ def install_python_virtualenv(): # {{{
     env.host_string = root_host
     run('pip install virtualenv virtualenvwrapper')
 # }}}
+
+def setup_webapps_location(target_host): # {{{
+    """
+    Make the webapps location
+    """
+    env.host_string = target_host
+    sudo('mkdir -p '+webapps_location, shell=False)
+    sudo('chown -R %s:%s %s' % (server_groupname, server_groupname, webapps_location), shell=False)
+
+# }}}
+
+
 def configure_python_virtualenv(target_host): # {{{
     """
     Add virtualenv capabilites to this user.
@@ -1007,8 +1020,8 @@ def configure_python_virtualenv(target_host): # {{{
     provide access to ``workon`` and ``mkvirtualenv``. This is
     only applicable on a per user basis.
     """
-    env.host_string = target_host
-    run('mkdir -p '+python_environment_dir)
+    env.host_string = target_host 
+    run('mkdir -p '+python_environment_dir, shell=False)
     run('echo >> ~/.bashrc')
     run('echo \'export WORKON_HOME='+python_environment_dir+'\' >> ~/.bashrc')
     run('echo \'export VIRTUALENV_USE_DISTRIBUTE=1\' >> ~/.bashrc')
