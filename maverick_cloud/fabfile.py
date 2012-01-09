@@ -901,7 +901,7 @@ def aptget_nginx(): # {{{
     Update to the lates nginx repo and install nginx
     """
     env.host_string = root_host
-    run('add-apt-repository ppa:nginx/development')
+    #run('add-apt-repository ppa:nginx/development')
     run('yes | apt-get update')
     run('yes | apt-get install nginx-common nginx-extras')
 
@@ -911,7 +911,7 @@ def aptget_uwsgi(): # {{{
     Update to the latest uwsgi repo and install uwsgi
     """
     env.host_string = root_host
-    run('add-apt-repository ppa:uwsgi/release')
+    #run('add-apt-repository ppa:uwsgi/release')
     run('yes | apt-get update')
     run('yes | apt-get install uwsgi-python')
 
@@ -935,7 +935,7 @@ def aptget_vim73(): # {{{
     * ``par`` the paragraph formatter
     """
     env.host_string = root_host
-    run('add-apt-repository ppa:ubuntu-backports-testers/ppa')
+    #run('add-apt-repository ppa:ubuntu-backports-testers/ppa')
     run('yes | apt-get update')
     run('yes | apt-get install vim ctags par')
 
