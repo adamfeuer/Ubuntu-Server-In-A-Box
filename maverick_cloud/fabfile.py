@@ -1084,30 +1084,34 @@ def set_fqdn(target=root_host):
     fqdn = server_hostname + '.' + server_domain
     sudo("sed -i 's/ubuntu/%s %s/g' /etc/hosts" % (server_hostname, fqdn))
 
-def make_virtual_environment():
-    prod_env_name = "research.liveingreatness.com"
-    staging_env_name = "research-staging.liveingreatness.com"
-    prod_env_path = make_virtual_environment(prod_env_name)
-    staging_env_path = make_virtual_environment(staging_env_name)
-    sudo("chown -R %s:%s %s" % (server_groupname, server_groupname, webapps_location))
-    sudo("chmod -R ug+rw " + webapps_location)
-    prod_source_path = clone_repo(prod_env_path)
-    staging_source_path = clone_repo(staging_env_path)
-    install_virtual_env_requirements(prod_env_path, prod_source_path)
-    install_virtual_env_requirements(staging_env_path, staging_source_path)
-
-def make_virtual_environment(virtual_env_base_name):
+def make_virtual_environments(): 
     env.host_string = root_host
+    for environment in virtual_environments:
+        env_path = make_virtual_environment(environment)
+        sudo('mkdir ' + env_path + '/logs')
+        set_user_and_group(server_groupname, server_groupname, webapps_location)
+        source_path = clone_repo(env_path)
+        apache_dir_source_path = source_path + '/apache'
+        apache_dir_env_path = env_path + '/apache'
+        sudo('ln -s ' + apache_dir_source_path + ' ' + apache_dir_env_path)
+        set_user_and_group(server_groupname, server_groupname, apache_dir_env_path)
+        install_virtual_env_requirements(env_path, source_path)
+
+def set_user_and_group(user, group, path):
+    sudo("chown -R %s:%s %s" % (user, group, path))
+    sudo("chmod -R ug+rw " + path)
+        
+def make_virtual_environment(virtual_env_base_name):
     virtual_env_path = webapps_location + '/' + virtual_env_base_name
     sudo("virtualenv " + virtual_env_path)
     return virtual_env_path
 
 def clean_virtual_environments():
-    clean_virtual_environment("research.liveingreatness.com")
-    clean_virtual_environment("research-staging.liveingreatness.com")
+    env.host_string = root_host
+    for environment in virtual_environments:
+        clean_virtual_environment(environment)
 
 def clean_virtual_environment(virtual_env_base_name):
-    env.host_string = root_host
     virtual_env_path = webapps_location + '/' + virtual_env_base_name
     sudo("rm -rf " + virtual_env_path)
 
