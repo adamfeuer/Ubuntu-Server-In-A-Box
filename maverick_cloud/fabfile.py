@@ -2,7 +2,7 @@ import os
 from fabric.api import *
 from fabric.contrib.console import confirm
 
-print "Welcome to Ubuntu 10.10 - Server In A Box"
+print "Welcome to Ubuntu 11.10 - Server In A Box"
 print "========================================="
 
 from settings import *
@@ -14,7 +14,6 @@ pip_url  = pypi_url+'/p/pip/'+pip_vers+'.tar.gz'
 pip_md5  = 'df1eca0abe7643d92b5222240bed15f6'
 
 root_host      =  'root@' + server_hostname
-gitolite_host  =  'gitolite@'+server_hostname
 main_host      =  main_username+'@'+server_hostname
 deploy_host    =  deploy_username + '@'+server_hostname
 
@@ -52,12 +51,14 @@ def setup_init(update=True): # {{{
 
     aptget_compiler()
     aptget_common_dev_headers()
+    aptget_git()
 
 # }}}
 def setup_server(): # {{{
     """
-    Installs and configures web, mail and git servers
+    Installs and configures web servers
     """
+    set_fqdn()
     install_webroot()
     setup_apache()
     setup_nginx()
@@ -760,9 +761,8 @@ def regen_configs(): # {{{
     """
     Generate server config files, like vhosts, based on templates.
 
-    Generate the config files from their respective templates. Also
-    the list of gitolite repos is built from the settings array ``git_hosted_repos``
-
+    Generate the config files from their respective templates.
+    
     Currently this list of templates includes
 
     * ``apache/vhost_templates``
@@ -780,9 +780,6 @@ def regen_configs(): # {{{
 
     with lcd(local_config_dir+'/nginx/vhost_templates'):
         local("find . -type f -exec bash -c '"+cmd+"' "+args+" \;")
-
-    replacements = 'sed -e "s/SERVERADMINS/'+' '.join(git_repo_admins)+'/" | sed -e "s/SERVERDEVTEAM/'+' '.join(git_repo_devteam)+'/"'
-    local('cat '+local_config_dir+'/gitolite.conf.sample | '+replacements+' > '+local_config_dir+'/gitolite.conf')
 
 # }}}
 def regen_tarball(srcdir, source): # {{{
@@ -894,15 +891,10 @@ def clean(keys=False): # {{{
     local('rm -rf '+local_config_dir+'/apache/sites-available/*')
     local('rm -rf '+local_config_dir+'/nginx/sites-available/*')
 
-    # git
-    local('rm -rf '+local_config_dir+'/gitolite.conf')
-    local('rm -rf '+local_config_dir+'/gitolite_repos.conf')
-
     # compiled python files
     local('find ../ -type f -iname "*.pyc" -exec rm -rf "{}" +')
 
     if keys:
-        local('rm -rf '+local_config_dir+'/keys/gitolite/*')
         local('rm -rf '+local_config_dir+'/keys/shell/*')
 
 # }}}
@@ -1086,3 +1078,67 @@ def reskel_existing_user(user, home=''): # {{{
 
     run('chown -R '+user+'.'+user+' '+home)
 # }}}
+
+def set_fqdn(target=root_host):
+    env.host_string = root_host
+    fqdn = server_hostname + '.' + server_domain
+    sudo("sed -i 's/ubuntu/%s %s/g' /etc/hosts" % (server_hostname, fqdn))
+
+def make_virtual_environment():
+    prod_env_name = "research.liveingreatness.com"
+    staging_env_name = "research-staging.liveingreatness.com"
+    prod_env_path = make_virtual_environment(prod_env_name)
+    staging_env_path = make_virtual_environment(staging_env_name)
+    sudo("chown -R %s:%s %s" % (server_groupname, server_groupname, webapps_location))
+    sudo("chmod -R ug+rw " + webapps_location)
+    prod_source_path = clone_repo(prod_env_path)
+    staging_source_path = clone_repo(staging_env_path)
+    install_virtual_env_requirements(prod_env_path, prod_source_path)
+    install_virtual_env_requirements(staging_env_path, staging_source_path)
+
+def make_virtual_environment(virtual_env_base_name):
+    env.host_string = root_host
+    virtual_env_path = webapps_location + '/' + virtual_env_base_name
+    sudo("virtualenv " + virtual_env_path)
+    return virtual_env_path
+
+def clean_virtual_environments():
+    clean_virtual_environment("research.liveingreatness.com")
+    clean_virtual_environment("research-staging.liveingreatness.com")
+
+def clean_virtual_environment(virtual_env_base_name):
+    env.host_string = root_host
+    virtual_env_path = webapps_location + '/' + virtual_env_base_name
+    sudo("rm -rf " + virtual_env_path)
+
+def aptget_git():
+    env.host_string = root_host
+    run('yes | apt-get install git')
+    
+def clone_repo(virtual_env_path):
+    env.host_string = root_host
+    source_path = virtual_env_path + '/' + git_repo_dirname
+    run("git clone " + git_repo + ' ' + source_path)
+    return source_path
+    
+def install_virtual_env_requirements(virtual_env_path, source_path):
+    env.host_string = root_host
+    requirements_file_path = source_path + '/' + "requirements.pip"
+    run("source  " + virtual_env_path + "/bin/activate; pip install -r " + requirements_file_path)
+
+def sshagent_run(cmd):
+    """
+    Helper function.
+    Runs a command with SSH agent forwarding enabled.
+    
+    Note:: Fabric (and paramiko) can't forward your SSH agent. 
+    This helper uses your system's ssh to do so.
+    """
+
+    for h in env.hosts:
+        try:
+            # catch the port number to pass to ssh
+            host, port = h.split(':')
+            local('ssh -p %s -A %s "%s"' % (port, host, cmd))
+        except ValueError:
+            local('ssh -A %s "%s"' % (h, cmd))
