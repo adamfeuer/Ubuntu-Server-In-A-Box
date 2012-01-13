@@ -62,8 +62,9 @@ def setup_server(): # {{{
     install_webroot()
     setup_apache()
     setup_nginx()
-    setup_webapps_location(root_host)
+    setup_webapps_location()
     setup_python() # includes virtualenv, django and wsgi
+    setup_virtual_environments()
 
 # }}}
 def clean_all(): # {{{
@@ -79,6 +80,7 @@ def clean_all(): # {{{
     clean_webroot()
     clean_apache()
     clean_nginx()
+    clean_virtual_environments()
 
 # }}}
 
@@ -706,7 +708,7 @@ def install_python_pip(): # {{{
         md5_compute = run('md5sum '+the_file)
         md5_string  = pip_md5+'  '+the_file
         result      = run('[ "'+md5_compute+'" = "'+md5_string+'" ]')
-    if result.failed and not confirm("Bad pip tarball. Continue anyway?"):
+    if result.failed and not confirm("Bad pip tarball. `Continue anyway?"):
         abort("Aborting at user request.")
 
     run('tar -zxf ' + the_file)
@@ -722,13 +724,13 @@ def install_python_virtualenv(): # {{{
     run('pip install virtualenv virtualenvwrapper')
 # }}}
 
-def setup_webapps_location(target_host): # {{{
+def setup_webapps_location(): # {{{
     """
     Make the webapps location
     """
-    env.host_string = target_host
-    sudo('mkdir -p '+webapps_location, shell=False)
-    sudo('chown -R %s:%s %s' % (server_groupname, server_groupname, webapps_location), shell=False)
+    env.host_string = root_host
+    run('mkdir -p '+webapps_location)
+    run('chown -R %s:%s %s' % (server_groupname, server_groupname, webapps_location))
 
 # }}}
 
@@ -742,9 +744,9 @@ def configure_python_virtualenv(target_host): # {{{
     only applicable on a per user basis.
     """
     env.host_string = target_host 
-    run('mkdir -p '+python_environment_dir, shell=False)
+    run('mkdir -p '+webapps_location, shell=False)
     run('echo >> ~/.bashrc')
-    run('echo \'export WORKON_HOME='+python_environment_dir+'\' >> ~/.bashrc')
+    run('echo \'export WORKON_HOME='+webapps_location+'\' >> ~/.bashrc')
     run('echo \'export VIRTUALENV_USE_DISTRIBUTE=1\' >> ~/.bashrc')
     run('echo \'source /usr/local/bin/virtualenvwrapper.sh\' >> ~/.bashrc')
 
@@ -1079,11 +1081,13 @@ def reskel_existing_user(user, home=''): # {{{
     run('chown -R '+user+'.'+user+' '+home)
 # }}}
 
-def set_fqdn(target=root_host):
+def set_fqdn():
     env.host_string = root_host
     fqdn = server_hostname + '.' + server_domain
-    sudo("sed -i 's/ubuntu/%s %s/g' /etc/hosts" % (server_hostname, fqdn))
-
+    run("sed -i 's/ubuntu/%s %s/g' /etc/hosts" % (server_hostname, fqdn))
+    run("echo %s > /etc/hostname" % server_hostname)
+    run("hostname %s" % server_hostname )
+    
 def make_virtual_environments(): 
     env.host_string = root_host
     for environment in virtual_environments:
@@ -1130,6 +1134,24 @@ def install_virtual_env_requirements(virtual_env_path, source_path):
     requirements_file_path = source_path + '/' + "requirements.pip"
     run("source  " + virtual_env_path + "/bin/activate; pip install -r " + requirements_file_path)
 
+def setup_ssl():
+    fqdn = server_hostname + '.' + server_domain
+    env.host_string = root_host
+    run("apt-get install openssl")
+    with cd(webapps_location):
+        run("mkdir ssl")
+        put(local_path="conf/ssl/sslcert.conf", remote_path="%s/ssl" % webapps_location)
+        run("sed -i 's/Example, Inc./%s/g' ssl/sslcert.conf" % ssl_organization_name )
+        run("sed -i 's/server.example.com/*.%s/g' ssl/sslcert.conf" % fqdn )
+        run("sed -i 's/postmaster@example.com/%s/g' ssl/sslcert.conf" % ssl_contact )
+        run("openssl req -new -x509 -days 365 -nodes -config ssl/sslcert.conf -out ssl/nginx.pem -keyout ssl/nginx.key")
+        run("chmod 600 ssl/*")
+
+def clean_ssl():
+    env.host_string = root_host
+    run("rm -rf %s/ssl" % webapps_location )
+
+    
 def sshagent_run(cmd):
     """
     Helper function.

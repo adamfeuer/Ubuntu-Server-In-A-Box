@@ -5,20 +5,26 @@
 # You should at least provide a hostname in FQDN format!
 #################################################################
 # Something like server_hostname  = 'rainmaker.wonderwidget.dyndns.org'
-server_hostname  = ''
-server_domain  = ''
+server_hostname  = 'test0'
+server_domain  = 'dev'
 
 # You probably also want to change these settings
 #################################################################
-main_username    = 'masterchief' # this is the sudo user
+main_username    = 'admin1' # this is the sudo user
 
-main_password    = 'mc2000'
-deploy_password  = 'rockin1999'
-team_password    = 'goteam900'
+main_password    = 'password'
+deploy_password  = 'password'
+team_password    = 'password'
 
-team_users       = [ 'mary', 'john' ]
-git_repo_devteam = [ 'mary', 'john', 'jane', 'mike' ]
-git_hosted_repos = [ 'someproject', 'clientdemo', 'superblog' ]
+team_users       = [ ]
+
+virtual_environments = ['app.example.com', 'app-staging.example.com']
+git_repo = 'git://github.com/adamfeuer/surveytool.git'
+git_repo_dirname = 'surveytool'
+
+# SSL cert settings
+ssl_organization_name = "Example, Inc."
+ssl_contact = "postmaster@example,com"
 
 # You can probably leave the rest of these settings alone
 #################################################################
@@ -67,18 +73,6 @@ else:
 team_groupname   = 'webdevelopers'
 deploy_username  = 'deploy'
 
-git_repo_devteam.append(deploy_username)
-if not single_user_mode:
-    git_repo_devteam.append(main_username)
-    git_repo_admins = [ main_username ]
-else:
-    git_repo_admins = [ deploy_username ]
-
-gitolite_admin_local = '~/etc/gitolite/'+server_hostname
-gitolite_admin_name  = 'Repository Manager'
-gitolite_admin_email = 'gitolite@'+server_fqdn
-gitolite_admin_user  = main_username
-
 team_sudo_cmds = [
     "/usr/sbin/a2ensite",
     "/usr/sbin/a2dissite",
@@ -98,38 +92,13 @@ local_backup_dir  = os.path.abspath('./.bak')
 local_tar_dir     = os.path.abspath('./.tarballs')
 local_config_dir  = os.path.abspath('./conf')
 
-remote_backup_dir = '/var/dumps/maverick_cloud_fabfile'
-remote_config_dir = '/var/local/maverick_cloud_fabfile'
+remote_backup_dir = '/var/dumps/django-server-fabfile'
+remote_config_dir = '/var/local/django-server-fabfile'
 
 server_groupname       = 'www-data'
 
 webroot_dir            = '/var/www'
-python_environment_dir = '~/Envs'
+webapps_location       = '/opt/webapps'
 
-create_missing_shell_keys  = True
-create_missing_git_keys    = True
 
-vim_config_tarball_url = 'http://rocksolidwebdesign.com/pub/vim/cloud_vim.tar.gz'
 
-djangocms_deps = [
-    'south',
-    'pil',
-    'mysql-python',
-    'psycopg2',
-    'django',
-    'django-classy-tags',
-    'django-appmedia',
-    'django-cms',
-    'django-tinymce',
-]
-
-rails_gem_deps = [
-    'sqlite3-ruby',
-    'mysql',
-    'pg',
-    'rmagick',
-    'capistrano',
-    'capistrano-ext',
-    'libxml-ruby',
-    'libxslt-ruby',
-]
