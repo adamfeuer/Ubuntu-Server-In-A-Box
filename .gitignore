@@ -1,6 +1,4 @@
-maverick_cloud/settings.py
-maverick_cloud/.bak
-maverick_cloud/.tarballs
-maverick_cloud/conf/gitolite.conf
-maverick_cloud/conf/gitolite_repos.conf
+django-server/settings.py
+django-server/.bak
+django-server/.tarballs
 *.pyc
