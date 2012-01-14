@@ -1084,23 +1084,31 @@ def reskel_existing_user(user, home=''): # {{{
 def set_fqdn():
     env.host_string = root_host
     fqdn = server_hostname + '.' + server_domain
-    run("sed -i 's/ubuntu/%s %s/g' /etc/hosts" % (server_hostname, fqdn))
+    replace_in_file("/etc/hosts", "ubuntu", "%s %s" (server_hostname, fqdn))
     run("echo %s > /etc/hostname" % server_hostname)
     run("hostname %s" % server_hostname )
+
+def replace_in_file(remote_file_path, target, replacement):
+    run("sed -i 's/%s/%s/g' %s" % (target, replacement, remote_file_path))
     
 def make_virtual_environments(): 
     env.host_string = root_host
-    for environment in virtual_environments:
-        env_path = make_virtual_environment(environment)
-        sudo('mkdir ' + env_path + '/logs')
-        set_user_and_group(server_groupname, server_groupname, webapps_location)
+    for virtual_environment_name in virtual_environments:
+        env_path = make_virtual_environment(virtual_environment_name)
+        with cd(env_path):
+            run('mkdir logs')
+            run('mkdir apache')
+        install_wsgi_config(virtual_environment_name, env_path)
         source_path = clone_repo(env_path)
-        apache_dir_source_path = source_path + '/apache'
-        apache_dir_env_path = env_path + '/apache'
-        sudo('ln -s ' + apache_dir_source_path + ' ' + apache_dir_env_path)
-        set_user_and_group(server_groupname, server_groupname, apache_dir_env_path)
         install_virtual_env_requirements(env_path, source_path)
+    set_user_and_group(server_groupname, server_groupname, webapps_location)
 
+def install_wsgi_config(virtual_environment_name, env_path):
+    wsgi_config_path = env_path + "/apache/django-wsgi-%s" % virtual_environment_name
+    put(local_path="conf/wsgi/django.wsgi", remote_path=wsgi_config_path)
+    replace_in_file(wsgi_config_path, "app.example.com", virtual_environment_name)
+    replace_in_file(wsgi_config_path, "appname", appname)
+    
 def set_user_and_group(user, group, path):
     sudo("chown -R %s:%s %s" % (user, group, path))
     sudo("chmod -R ug+rw " + path)
@@ -1125,7 +1133,7 @@ def aptget_git():
     
 def clone_repo(virtual_env_path):
     env.host_string = root_host
-    source_path = virtual_env_path + '/' + git_repo_dirname
+    source_path = virtual_env_path + '/' + appname
     run("git clone " + git_repo + ' ' + source_path)
     return source_path
     
