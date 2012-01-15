@@ -59,12 +59,13 @@ def setup_server(): # {{{
     Installs and configures web servers
     """
     set_fqdn()
-    install_webroot()
+    setup_python() # includes virtualenv, django and wsgi
     setup_apache()
     setup_nginx()
     setup_webapps_location()
-    setup_python() # includes virtualenv, django and wsgi
-    setup_virtual_environments()
+    setup_ssl_cert()
+    make_virtual_environments()
+    install_webroot()
 
 # }}}
 def clean_all(): # {{{
@@ -80,6 +81,7 @@ def clean_all(): # {{{
     clean_webroot()
     clean_apache()
     clean_nginx()
+    clean_ssl()
     clean_virtual_environments()
 
 # }}}
@@ -100,7 +102,6 @@ def init_system(): # {{{
     """
     env.host_string = root_host
 
-    regen_configs()
     regen_tarballs()
 
     init_root_user();
@@ -123,7 +124,7 @@ def setup_users(): # {{{
 
 # }}}
 
-# Web and Mail Servers
+# Web Servers
 def setup_apache(): # {{{
     """
     Installs and configures Apache HTTPD
@@ -131,7 +132,10 @@ def setup_apache(): # {{{
     aptget_lamp()
     a2enmod_rewrite()
     a2enmod_proxy()
+    a2enmod_wsgi()
     install_apache_config()
+    setup_apache_logs()
+    restart_apache()
 
 # }}}
 def setup_nginx(): # {{{
@@ -159,9 +163,6 @@ def setup_python(target_host=deploy_host): # {{{
 
     # setup the deploy user with virtualenv
     configure_python_virtualenv(target_host)
-
-    # install the wsgi apache module and the standalone uwsgi
-    aptget_mod_wsgi()
 
 # }}}
 
@@ -425,53 +426,26 @@ def restore_apache_config(): # {{{
 # }}}
 def install_apache_config(): # {{{
     """
-    Install apache vhosts and custom "behind nginx" switch
-
-    Copies the customized and templated vhosts from
-    your local config dir to the actual web server and
-    then restarts.  This also sets up a symlink for
-    ports to allow switching between having apache
-    as the master server and having apache behind an
-    nginx reverse proxy. Sets up permissions for
-    team sharing of the vhost configs.
+    Setup Apache config files
     """
     env.host_string = root_host
-
     backup_apache_config()
-
-    # setup files for switching between nginx and apache
-    put(local_config_dir+'/apache/ports.master.conf', '/etc/apache2')
-    put(local_config_dir+'/apache/ports.behind_nginx.conf', '/etc/apache2')
-    run('rm -rf /etc/apache2/ports.conf')
-    run('ln -s /etc/apache2/ports.master.conf /etc/apache2/ports.conf')
-
-    # install vhosts
-    run('rm -rf /etc/apache2/sites-available/*')
-    run('rm -rf /etc/apache2/sites-enabled/*')
-    put(local_tar_dir+'/apache/sites-available.tar.gz', '/etc/apache2')
-    with cd('/etc/apache2'):
-        run('tar -zxf sites-available.tar.gz')
-        run('rm -rf sites-available.tar.gz')
-
-    # enable all the vhosts
-    with cd('/etc/apache2/sites-enabled'):
-        run('find ../sites-available/ -type f -exec ln -s "{}" . \;')
-
-        # by default we don't run apache behind nginx for now
-        run('rm -rf default-ssl-nginx')
-
+    put(local_path="conf/wsgi/ports.conf", remote_path="/etc/apache2")
     # re-chown the webroot since we uploaded localhost as root
     configure_open_share(deploy_username, server_groupname, webroot_dir)
-
     # allow team and or admins to add and edit vhosts
     if single_user_mode:
         configure_open_share(deploy_username, team_groupname, '/etc/apache2/sites-available')
     else:
         configure_restricted_share('root', team_groupname, '/etc/apache2/sites-available')
 
+# }}}
+
+def restart_apache():
+    env.host_string = root_host
     run('service apache2 restart')
 
-# }}}
+        
 def backup_nginx_config(): # {{{
     """
     Backs up the nginx configuration dir into the backup directory
@@ -571,11 +545,9 @@ def aptget_common_dev_headers(): # {{{
     """
     Install database, image and xml dev headers for compiling modules
 
-    Common PHP, Ruby and python modules want some various dev
-    headers around if we're going to compile from scratch
     """
     env.host_string = root_host
-    run('yes | apt-get install libmysqlclient-dev libpq-dev libmagickwand-dev libxml2-dev libxslt1-dev python-dev ruby-dev libcurl4-openssl-dev')
+    run('yes | apt-get install libmysqlclient-dev libpq-dev libmagickwand-dev libxml2-dev libxslt1-dev python-dev libcurl4-openssl-dev')
 
 # }}}
 def aptget_databases(): # {{{
@@ -587,14 +559,10 @@ def aptget_databases(): # {{{
 # }}}
 def aptget_lamp(): # {{{
     """
-    Install Apache along with CGI and PHP modules
-    
-    And a whole ton of common PHP extensions that should 
-    be good enough for running common fairly advanced 
-    software like Magento
+    Install Apache along with CGI 
     """
     env.host_string = root_host
-    run('yes | apt-get install apache2 apache2-dev libapache2-mod-fcgid php5 php5-dev php5-cli php-pear php-apc php5-sqlite php5-mysql php5-pgsql php5-curl php5-imagick php5-gd php5-mcrypt php5-xdebug php5-xmlrpc php5-xsl')
+    run('yes | apt-get install apache2 apache2-dev libapache2-mod-wsgi')
 
 # }}}
 def a2enmod_rewrite(): # {{{
@@ -603,7 +571,7 @@ def a2enmod_rewrite(): # {{{
     """
     env.host_string = root_host
     run('a2enmod rewrite')
-    run('service apache2 restart')
+    restart_apache()
 
 # }}}
 def a2enmod_proxy(): # {{{
@@ -613,17 +581,16 @@ def a2enmod_proxy(): # {{{
     env.host_string = root_host
     run('a2enmod proxy')
     run('a2enmod proxy_http')
-    run('service apache2 restart')
+    restart_apache()
 
 # }}}
-def aptget_mod_wsgi(): # {{{
+def a2enmod_wsgi(): # {{{
     """
     Install and enable the apache WSGI module for running python apps
     """
     env.host_string = root_host
-    run('yes | apt-get install libapache2-mod-wsgi')
     run('a2enmod wsgi')
-    run('service apache2 restart')
+    restart_apache()
 
 # }}}
 def aptget_nginx(): # {{{
@@ -729,7 +696,7 @@ def setup_webapps_location(): # {{{
     Make the webapps location
     """
     env.host_string = root_host
-    run('mkdir -p '+webapps_location)
+    run('mkdir -p ' + webapps_location)
     run('chown -R %s:%s %s' % (server_groupname, server_groupname, webapps_location))
 
 # }}}
@@ -744,9 +711,9 @@ def configure_python_virtualenv(target_host): # {{{
     only applicable on a per user basis.
     """
     env.host_string = target_host 
-    run('mkdir -p '+webapps_location, shell=False)
+    run('mkdir -p '+virtual_environments_location, shell=False)
     run('echo >> ~/.bashrc')
-    run('echo \'export WORKON_HOME='+webapps_location+'\' >> ~/.bashrc')
+    run('echo \'export WORKON_HOME='+virtual_environments_location+'\' >> ~/.bashrc')
     run('echo \'export VIRTUALENV_USE_DISTRIBUTE=1\' >> ~/.bashrc')
     run('echo \'source /usr/local/bin/virtualenvwrapper.sh\' >> ~/.bashrc')
 
@@ -758,32 +725,6 @@ def configure_python_virtualenv(target_host): # {{{
 ################################################################
 # Modular and repeatable helpers that other tasks can use
 
-# Generate Configs
-def regen_configs(): # {{{
-    """
-    Generate server config files, like vhosts, based on templates.
-
-    Generate the config files from their respective templates.
-    
-    Currently this list of templates includes
-
-    * ``apache/vhost_templates``
-    * ``nginx/vhost_templates``
-    """
-    args = '_ "{}"'
-
-    local('mkdir -p '+local_config_dir+'/nginx/sites-available')
-    local('mkdir -p '+local_config_dir+'/apache/sites-available')
-
-    replacements = 'sed -e "s/SERVERDOMAINNAME/'+server_domain+'/" | sed -e "s#SERVERWEBROOT#'+webroot_dir+'#"'
-    cmd = 'fname=$(echo $1 | sed "s#.*/##"); cat $fname | '+replacements+' > ../sites-available/$fname'
-    with lcd(local_config_dir+'/apache/vhost_templates'):
-        local("find . -type f -exec bash -c '"+cmd+"' "+args+" \;")
-
-    with lcd(local_config_dir+'/nginx/vhost_templates'):
-        local("find . -type f -exec bash -c '"+cmd+"' "+args+" \;")
-
-# }}}
 def regen_tarball(srcdir, source): # {{{
     """
     Generate a tarball of a config dir
@@ -818,8 +759,6 @@ def regen_tarballs(): # {{{
 
     * ``conf/skel``
     * ``conf/apache/localhost/public``
-    * ``conf/apache/sites-available``
-    * ``conf/nginx/sites-available``
     """
     local('mkdir -p '+local_backup_dir)
     local('mkdir -p '+local_tar_dir)
@@ -827,8 +766,6 @@ def regen_tarballs(): # {{{
     configs = [
         {'source': 'skel',            'srcdir': ''},
         {'source': 'public',          'srcdir': 'apache/localhost'},
-        {'source': 'sites-available', 'srcdir': 'apache'},
-        {'source': 'sites-available', 'srcdir': 'nginx'},
     ]
 
     import os
@@ -863,7 +800,6 @@ def test_remote(user='root'): # {{{
     """
     env.host_string = user+'@'+server_fqdn
 
-    run('rvm')
     git_username    = run('git config --global --get user.name')
     run("echo 'Git User: "+git_username+"'")
     run('echo "Current Shell: $SHELL"')
@@ -888,10 +824,6 @@ def clean(keys=False): # {{{
     # local cache
     local('rm -rf '+local_tar_dir)
     local('rm -rf '+local_backup_dir)
-
-    # vhosts
-    local('rm -rf '+local_config_dir+'/apache/sites-available/*')
-    local('rm -rf '+local_config_dir+'/nginx/sites-available/*')
 
     # compiled python files
     local('find ../ -type f -iname "*.pyc" -exec rm -rf "{}" +')
@@ -1084,9 +1016,26 @@ def reskel_existing_user(user, home=''): # {{{
 def set_fqdn():
     env.host_string = root_host
     fqdn = server_hostname + '.' + server_domain
-    replace_in_file("/etc/hosts", "ubuntu", "%s %s" (server_hostname, fqdn))
+    replace_in_file("/etc/hosts", "ubuntu", "%s %s" % (server_hostname, fqdn))
     run("echo %s > /etc/hostname" % server_hostname)
     run("hostname %s" % server_hostname )
+
+def setup_ssl_cert():
+    fqdn = server_hostname + '.' + server_domain
+    env.host_string = root_host
+    run("apt-get install openssl")
+    with cd(webapps_location):
+        run("mkdir ssl")
+        put(local_path="conf/ssl/sslcert.conf", remote_path="%s/ssl" % webapps_location)
+        replace_in_file('ssl/sslcert.conf', 'Example, Inc.', ssl_organization_name)
+        replace_in_file('ssl/sslcert.conf', 'server.example.com', fqdn)
+        replace_in_file('ssl/sslcert.conf', 'postmaster@example.com', ssl_contact)
+        run("openssl req -new -x509 -days 365 -nodes -config ssl/sslcert.conf -out ssl/nginx.pem -keyout ssl/nginx.key")
+        run("chmod 600 ssl/*")
+
+def clean_ssl():
+    env.host_string = root_host
+    run("rm -rf %s/ssl" % webapps_location )
 
 def replace_in_file(remote_file_path, target, replacement):
     run("sed -i 's/%s/%s/g' %s" % (target, replacement, remote_file_path))
@@ -1101,13 +1050,21 @@ def make_virtual_environments():
         install_wsgi_config(virtual_environment_name, env_path)
         source_path = clone_repo(env_path)
         install_virtual_env_requirements(env_path, source_path)
+        install_django_app_config_file(virtual_environment_name)
+        make_keyczar_keys(virtual_environment_name, env_path)
+        setup_apache_wsgi(virtual_environment_name)
     set_user_and_group(server_groupname, server_groupname, webapps_location)
 
-def install_wsgi_config(virtual_environment_name, env_path):
-    wsgi_config_path = env_path + "/apache/django-wsgi-%s" % virtual_environment_name
+def install_wsgi_config(virtual_environment_name, env_path): 
+    env.host_string = root_host
+    wsgi_config_path = env_path + "/apache/django.wsgi-%s" % virtual_environment_name
     put(local_path="conf/wsgi/django.wsgi", remote_path=wsgi_config_path)
-    replace_in_file(wsgi_config_path, "app.example.com", virtual_environment_name)
-    replace_in_file(wsgi_config_path, "appname", appname)
+    replace_in_file(wsgi_config_path, "APP.EXAMPLE.COM", virtual_environment_name)
+    replace_in_file(wsgi_config_path, "APPNAME", appname)
+
+def clean_wsgi_config(env_path):
+    env.host_string = root_host
+    run ("rm -rf %s/apache" % env_path)
     
 def set_user_and_group(user, group, path):
     sudo("chown -R %s:%s %s" % (user, group, path))
@@ -1142,24 +1099,53 @@ def install_virtual_env_requirements(virtual_env_path, source_path):
     requirements_file_path = source_path + '/' + "requirements.pip"
     run("source  " + virtual_env_path + "/bin/activate; pip install -r " + requirements_file_path)
 
-def setup_ssl():
-    fqdn = server_hostname + '.' + server_domain
+def setup_apache_wsgi(virtual_environment_name):
     env.host_string = root_host
-    run("apt-get install openssl")
-    with cd(webapps_location):
-        run("mkdir ssl")
-        put(local_path="conf/ssl/sslcert.conf", remote_path="%s/ssl" % webapps_location)
-        run("sed -i 's/Example, Inc./%s/g' ssl/sslcert.conf" % ssl_organization_name )
-        run("sed -i 's/server.example.com/*.%s/g' ssl/sslcert.conf" % fqdn )
-        run("sed -i 's/postmaster@example.com/%s/g' ssl/sslcert.conf" % ssl_contact )
-        run("openssl req -new -x509 -days 365 -nodes -config ssl/sslcert.conf -out ssl/nginx.pem -keyout ssl/nginx.key")
-        run("chmod 600 ssl/*")
+    put(local_path="conf/wsgi/app.example.com-apache", remote_path="/etc/apache2/sites-available/%s" % virtual_environment_name)
+    apache_site_file = '/etc/apache2/sites-available/%s' % virtual_environment_name
+    replace_in_file(apache_site_file, 'APP.EXAMPLE.COM', virtual_environment_name)
+    replace_in_file(apache_site_file, 'APPNAME', appname)
+    run("a2ensite %s" % virtual_environment_name)
+    run("service apache2 reload")
 
-def clean_ssl():
+def clean_apache_wsgi():
     env.host_string = root_host
-    run("rm -rf %s/ssl" % webapps_location )
+    for name in virtual_environments:
+        with cd("/etc/apache2/sites-available"):
+            run("a2dissite %s" % name)
+            run("rm %s" % name)
 
+def install_django_app_config_file(virtual_environment_name):
+    env.host_string = root_host
+    config_file_name = appname + '.config'
+    config_path = webapps_location+'/'+virtual_environment_name+'/'+config_file_name
+    put(local_path=config_file_path, remote_path=config_path)
+    set_user_and_group(server_groupname, server_groupname, config_path)
+
+def clean_django_app_config_file(virtual_environment_name):
+    env.host_string = root_host
+    config_file_name = appname + '.config'
+    config_path = webapps_location+'/'+virtual_environment_name+'/'+config_file_name
+    run('rm -f '+ config_path)
+
+def make_keyczar_keys(virtual_environment_name,env_path):
+    env.host_string = root_host 
+    app_path = env_path+'/'+appname
+    activate_path = env_path+'/bin/activate'
+    keyczart_path = app_path+'/bin/keyczart'
+    keys_path = app_path+'/keys'
+    run('source ' + activate_path + ' && ' + keyczart_path + ' ' + keys_path)
     
+def clean_keyczar_keys(virtual_environment_name):
+    env.host_string = root_host 
+    run('rm -rf '+webapps_location+'/'+virtual_environment_name+'/'+appname+'/keys')
+    
+
+def setup_apache_logs():
+    env.host_string = root_host
+    set_user_and_group(server_groupname, server_groupname, '/var/log/apache2')
+
+
 def sshagent_run(cmd):
     """
     Helper function.
