@@ -74,5 +74,5 @@ Here is the documentation for each fab task that is available
 
 You can of course, also see this list with ``fab --list``
 
-.. automodule:: maverick_cloud.fabfile
+.. automodule:: django-server.fabfile
     :members:
