@@ -20,13 +20,13 @@ deploy_host    =  deploy_username + '@'+server_hostname
 # pseudo inline-function for bash
 get_cur_timestamp = '$(date +%Y-%m-%d_%H%M%S)'
 
-# }}}
+
 
 # MAIN TASKS
 ################################################################
 # Shortcuts - tasks that call the high level generic tasks below
 
-def setup(update=True): # {{{
+def setup(update=True): 
     """
     Bootstrap an entire server from a blank Ubuntu 11.10 Server distro
     """
@@ -34,8 +34,8 @@ def setup(update=True): # {{{
     setup_users()
     setup_server()
 
-# }}}
-def setup_init(update=True): # {{{
+
+def setup_init(update=True): 
     # Preparation
     # ---------------------------------------------------
     # install the root user, config and working dirs
@@ -53,8 +53,8 @@ def setup_init(update=True): # {{{
     aptget_common_dev_headers()
     aptget_git()
 
-# }}}
-def setup_server(): # {{{
+
+def setup_server(): 
     """
     Installs and configures web servers
     """
@@ -67,8 +67,8 @@ def setup_server(): # {{{
     make_virtual_environments()
     install_webroot()
 
-# }}}
-def clean_all(): # {{{
+
+def clean_all(): 
     """
     Sort of like make clean but more like uninstall.
 
@@ -84,7 +84,7 @@ def clean_all(): # {{{
     clean_ssl()
     clean_virtual_environments()
 
-# }}}
+
 
 
 # GENERIC TASKS
@@ -92,7 +92,7 @@ def clean_all(): # {{{
 # Tasks that call other tasks that actually get work done
 
 # System Init
-def init_system(): # {{{
+def init_system(): 
     """
     Initialialize the bare necessities, i.e. root user etc
 
@@ -112,8 +112,8 @@ def init_system(): # {{{
         run('mkdir -p '+remote_backup_dir)
         run('mkdir -p '+remote_config_dir)
 
-# }}}
-def setup_users(): # {{{
+
+def setup_users(): 
     """
     Install basic user accounts
     """
@@ -122,10 +122,10 @@ def setup_users(): # {{{
     install_team_users()
     install_team_sudoers()
 
-# }}}
+
 
 # Web Servers
-def setup_apache(): # {{{
+def setup_apache(): 
     """
     Installs and configures Apache HTTPD
     """
@@ -137,18 +137,18 @@ def setup_apache(): # {{{
     setup_apache_logs()
     restart_apache()
 
-# }}}
-def setup_nginx(): # {{{
+
+def setup_nginx(): 
     """
     Installs and configures nginx
     """
     aptget_nginx()
     install_nginx_config()
 
-# }}}
+
 
 # Python
-def setup_python(target_host=deploy_host): # {{{
+def setup_python(target_host=deploy_host): 
     """
     Installs python, virtualenv and WSGI.
 
@@ -164,9 +164,9 @@ def setup_python(target_host=deploy_host): # {{{
     # setup the deploy user with virtualenv
     configure_python_virtualenv(target_host)
 
-# }}}
 
-# }}}
+
+
 
 
 # REAL TASKS
@@ -176,7 +176,7 @@ def setup_python(target_host=deploy_host): # {{{
 # Core Configuration
 # Users {{{
 # root
-def init_root_user(): # {{{
+def init_root_user(): 
     """
     Configure a root user account for convenient access, requires root password.
 
@@ -192,8 +192,8 @@ def init_root_user(): # {{{
     add_prompt_to_user()
     select_prompt()
 
-# }}}
-def clean_root_user(): # {{{
+
+def clean_root_user(): 
     """
     Try to clean up any of the custom user configurations for root
 
@@ -205,10 +205,10 @@ def clean_root_user(): # {{{
     run('rm -rf .vim .vimrc .viminfo .ssh .colors_prompts .bash_prompt')
     run('if [ -e ~/.bashrc.bak ]; then rm -rf ~/.bashrc; mv ~/.bashrc.bak ~/.bashrc; fi')
 
-# }}}
+
 
 # users
-def install_master_users(): # {{{
+def install_master_users(): 
     """
     Install deploy and main users depending on ``single_user_mode``
     """
@@ -234,8 +234,8 @@ def install_master_users(): # {{{
         # root permissions
         run('adduser '+main_username+' sudo')
 
-# }}}
-def clean_master_users(): # {{{
+
+def clean_master_users(): 
     """
     Remove the deploy and main user accounts
     """
@@ -249,10 +249,10 @@ def clean_master_users(): # {{{
             run('deluser '+main_username)
             run('rm -rf /home/'+main_username)
 
-# }}}
+
 
 # team
-def install_team_users(): # {{{
+def install_team_users(): 
     """
     Setup team user accounts for each member
 
@@ -277,8 +277,8 @@ def install_team_users(): # {{{
         run('adduser '+name+' '+server_groupname)
         run('adduser '+name+' '+team_groupname)
 
-# }}}
-def clean_team_users(): # {{{
+
+def clean_team_users(): 
     """
     Remove any team user accounts
     """
@@ -294,10 +294,10 @@ def clean_team_users(): # {{{
             run('deluser '+name)
             run('rm -rf /home/'+name)
 
-# }}}
+
 
 # sudoers
-def install_team_sudoers(): # {{{
+def install_team_sudoers(): 
     """
     Give team members some limited webserver related priviliges
 
@@ -314,18 +314,18 @@ def install_team_sudoers(): # {{{
     run("echo '"+sudoer_line+"' >> /etc/sudoers.d/"+team_groupname)
     run("chmod 440 /etc/sudoers.d/"+team_groupname)
 
-# }}}
-def clean_team_sudoers(): # {{{
+
+def clean_team_sudoers(): 
     """
     Remove the extra team privileges
     """
     env.host_string = root_host
 
     run('if [ -e /etc/sudoers.d/'+team_groupname+' ]; then rm -rf /etc/sudoers.d/'+team_groupname+'; fi')
-# }}}
+
 
 # home skeleton
-def install_etc_skel(): # {{{
+def install_etc_skel(): 
     """
     Uploads the new user skeleton directory to the remote_config_dir
     """
@@ -336,8 +336,8 @@ def install_etc_skel(): # {{{
         run('tar -zxf skel.tar.gz')
         run('rm -rf skel.tar.gz')
 
-# }}}
-def clean_etc_skel(): # {{{
+
+def clean_etc_skel(): 
     """
     Removes the user configuration skeleton dir
 
@@ -348,11 +348,11 @@ def clean_etc_skel(): # {{{
 
     run('rm -rf '+remote_config_dir+'/skel')
 
-# }}}
 
-# }}}
-# Servers {{{
-def backup_webroot(): # {{{
+
+
+# Servers 
+def backup_webroot(): 
     """
     Backs up the webroot if it exists.
 
@@ -365,8 +365,8 @@ def backup_webroot(): # {{{
         if len(webroot_dir) and run('[ -e '+webroot_dir+' ]').succeeded:
             with cd(webroot_dir):
                 run('tar -czf '+remote_backup_dir+'/webroot.tar.gz ./')
-# }}}
-def restore_webroot(): # {{{
+
+def restore_webroot(): 
     """
     Restore original webroot from backup if the backup exists
     """
@@ -380,8 +380,8 @@ def restore_webroot(): # {{{
             with cd(webroot_dir):
                 run('tar -zxf webroot.tar.gz')
                 run('rm -rf webroot.tar.gz')
-# }}}
-def install_webroot(): # {{{
+
+def install_webroot(): 
     """
     Create initial webroot directory layout for Apache and Django
 
@@ -398,8 +398,8 @@ def install_webroot(): # {{{
     # allow team and web server to edit files in webroot
     configure_open_share(deploy_username, server_groupname, webroot_dir)
 
-# }}}
-def backup_apache_config(): # {{{
+
+def backup_apache_config(): 
     """
     Backs up the apache config to the backup directory
     """
@@ -408,8 +408,8 @@ def backup_apache_config(): # {{{
         if run('[ ! -e '+remote_backup_dir+'/apache2.tar.gz ]').succeeded:
             with cd('/etc'):
                 run('tar -czf '+remote_backup_dir+'/apache2.tar.gz apache2')
-# }}}
-def restore_apache_config(): # {{{
+
+def restore_apache_config(): 
     """
     Restore original apache config from backup if the backup exists
     """
@@ -423,8 +423,8 @@ def restore_apache_config(): # {{{
             with cd('/etc'):
                 run('tar -zxf apache2.tar.gz')
                 run('rm -rf apache2.tar.gz')
-# }}}
-def install_apache_config(): # {{{
+
+def install_apache_config(): 
     """
     Setup Apache config files
     """
@@ -439,14 +439,14 @@ def install_apache_config(): # {{{
     else:
         configure_restricted_share('root', team_groupname, '/etc/apache2/sites-available')
 
-# }}}
+
 
 def restart_apache():
     env.host_string = root_host
     run('service apache2 restart')
 
         
-def backup_nginx_config(): # {{{
+def backup_nginx_config(): 
     """
     Backs up the nginx configuration dir into the backup directory
     """
@@ -455,8 +455,8 @@ def backup_nginx_config(): # {{{
     if run('[ ! -e '+remote_backup_dir+'/nginx.tar.gz ]').succeeded:
         with cd('/etc'):
             run('tar -czf '+remote_backup_dir+'/nginx.tar.gz nginx')
-# }}}
-def restore_nginx_config(): # {{{
+
+def restore_nginx_config(): 
     """
     Restore original nginx config from backup if the backup exists
     """
@@ -470,42 +470,31 @@ def restore_nginx_config(): # {{{
             with cd('/etc'):
                 run('tar -zxf nginx.tar.gz')
                 run('rm -rf nginx.tar.gz')
-# }}}
-def install_nginx_config(): # {{{
-    """
-    Install nginx vhosts suitable for reverse proxying Apache
 
-    Copies the customized and templated vhosts from
-    your local config dir to the actual web server and
-    then restarts. Sets up permissions for team sharing
-    of the vhost configs. For now these are not turned on
-    by default.
+def install_nginx_config(): 
+    """
+    Install nginx conf that will proxy app and app-staging to
+    Apache running on port 9000
+
     """
     env.host_string = root_host
-
     backup_nginx_config()
-
-    # setup vhosts
-    run('rm -rf /etc/nginx/sites-available/*')
-    run('rm -rf /etc/nginx/sites-enabled/*')
-    put(local_tar_dir+'/nginx/sites-available.tar.gz', '/etc/nginx')
+    site_avail_file = '/etc/nginx/sites-available/'+site_name
     with cd('/etc/nginx'):
-        run('tar -zxf sites-available.tar.gz')
-        run('rm -rf sites-available.tar.gz')
-
+        put(local_path = 'conf/wsgi/nginx/nginx.conf', remote_path='/etc/nginx/nginx.conf')
+        put(local_path='conf/wsgi/nginx/app.example.com', remote_path=site_avail_file)
+    run('ln -s /etc/nginx/sites-available/%s /etc/nginx/sites-enabled/%s' % (site_name, site_name))
+    replace_in_file(site_avail_file, 'APP.EXAMPLE.COM', site_name)
+    replace_in_file(site_avail_file, 'APP-STAGING.EXAMPLE.COM', staging_site_name)
+    replace_in_file(site_avail_file, 'SERVER_IP_ADDRESS', server_ip_address)
+    
     if single_user_mode:
         configure_open_share(deploy_username, team_groupname, '/etc/nginx/sites-available')
     else:
         configure_restricted_share('root', team_groupname, '/etc/nginx/sites-available')
-
-    # don't turn on nginx for now
-    #with cd('/etc/nginx/sites-enabled'):
-    #    run('find ../sites-available/ -type f -exec ln -s "{}" . \;')
-
     run('service nginx restart')
 
-# }}}
-def upload_website_apache_localhost(host=root_host): # {{{
+def upload_website_apache_localhost(host=root_host): 
     """
     Uploads the actual publicly accessible files for the default localhost
 
@@ -521,9 +510,9 @@ def upload_website_apache_localhost(host=root_host): # {{{
     with cd(webroot_dir+'/apache/localhost'):
         run('tar -zxf public.tar.gz')
         run('rm -rf public.tar.gz')
-# }}}
-# Aptget {{{
-def aptget_software_updates(): # {{{
+
+# apt-get
+def aptget_software_updates(): 
     """
     Download and install the latest security patches for Ubuntu.
     """
@@ -531,8 +520,8 @@ def aptget_software_updates(): # {{{
     run('apt-get update')
     run('yes | apt-get upgrade')
 
-# }}}
-def aptget_compiler(): # {{{
+
+def aptget_compiler(): 
     """
     We'll need a compiler and basic build tools if we want
     to compile software.
@@ -540,8 +529,8 @@ def aptget_compiler(): # {{{
     env.host_string = root_host
     run('yes | apt-get install build-essential gcc g++ make')
 
-# }}}
-def aptget_common_dev_headers(): # {{{
+
+def aptget_common_dev_headers(): 
     """
     Install database, image and xml dev headers for compiling modules
 
@@ -549,23 +538,23 @@ def aptget_common_dev_headers(): # {{{
     env.host_string = root_host
     run('yes | apt-get install libmysqlclient-dev libpq-dev libmagickwand-dev libxml2-dev libxslt1-dev python-dev libcurl4-openssl-dev')
 
-# }}}
-def aptget_databases(): # {{{
+
+def aptget_databases(): 
     """
     Install the common databases: MySQL, Postgres and SQLite
     """
     run('yes | apt-get install mysql-server mysql-client postgresql sqlite sqlite3')
 
-# }}}
-def aptget_lamp(): # {{{
+
+def aptget_lamp(): 
     """
     Install Apache along with CGI 
     """
     env.host_string = root_host
     run('yes | apt-get install apache2 apache2-dev libapache2-mod-wsgi')
 
-# }}}
-def a2enmod_rewrite(): # {{{
+
+def a2enmod_rewrite(): 
     """
     Enable the Rewrite module
     """
@@ -573,8 +562,8 @@ def a2enmod_rewrite(): # {{{
     run('a2enmod rewrite')
     restart_apache()
 
-# }}}
-def a2enmod_proxy(): # {{{
+
+def a2enmod_proxy(): 
     """
     Enable the Proxy and Proxy HTTP modules
     """
@@ -583,8 +572,8 @@ def a2enmod_proxy(): # {{{
     run('a2enmod proxy_http')
     restart_apache()
 
-# }}}
-def a2enmod_wsgi(): # {{{
+
+def a2enmod_wsgi(): 
     """
     Install and enable the apache WSGI module for running python apps
     """
@@ -592,32 +581,32 @@ def a2enmod_wsgi(): # {{{
     run('a2enmod wsgi')
     restart_apache()
 
-# }}}
-def aptget_nginx(): # {{{
+
+def aptget_nginx(): 
     """
     Update to the lates nginx repo and install nginx
     """
     env.host_string = root_host
     run('yes | apt-get install nginx-common nginx-extras')
 
-# }}}
-def aptget_uwsgi(): # {{{
+
+def aptget_uwsgi(): 
     """
     Update to the latest uwsgi repo and install uwsgi
     """
     env.host_string = root_host
     run('yes | apt-get install uwsgi-python')
 
-# }}}
-def aptget_mail_server(): # {{{
+
+def aptget_mail_server(): 
     """
     Install the commonly desired tools for setting up a mail server
     """
     env.host_string = root_host
     run('yes | apt-get install dovecot-postfix postfix-doc postfix-mysql')
 
-# }}}
-def aptget_vim73(): # {{{
+
+def aptget_vim73(): 
     """
     Install the latest vim which right now is 7.3
 
@@ -630,8 +619,8 @@ def aptget_vim73(): # {{{
     env.host_string = root_host
     run('yes | apt-get install vim ctags par')
 
-# }}}
-def aptget_misc_deps(): # {{{
+
+def aptget_misc_deps(): 
     """
     Updates package list and installs: locate, tmux, add-apt-repository
 
@@ -647,11 +636,11 @@ def aptget_misc_deps(): # {{{
     env.host_string = root_host
     run('apt-get update')
     run('yes | apt-get install python-software-properties mlocate tmux ncurses-term curl')
-# }}}
 
-# }}}
-# Python {{{
-def install_python_distribute(): # {{{
+
+
+# python
+def install_python_distribute(): 
     """
     Installs the "distribute" python package, a setuptools clone
 
@@ -662,8 +651,8 @@ def install_python_distribute(): # {{{
     run('curl -O http://python-distribute.org/distribute_setup.py')
     run('python distribute_setup.py')
 
-# }}}
-def install_python_pip(): # {{{
+
+def install_python_pip(): 
     """
     Download and install a recent version of the pip utility
     """
@@ -682,16 +671,16 @@ def install_python_pip(): # {{{
     with cd(pip_vers):
         run('python setup.py install')
 
-# }}}
-def install_python_virtualenv(): # {{{
+
+def install_python_virtualenv(): 
     """
     Install virtualenv and virtual env wrapper from pip
     """
     env.host_string = root_host
     run('pip install virtualenv virtualenvwrapper')
-# }}}
 
-def setup_webapps_location(): # {{{
+
+def setup_webapps_location(): 
     """
     Make the webapps location
     """
@@ -699,10 +688,10 @@ def setup_webapps_location(): # {{{
     run('mkdir -p ' + webapps_location)
     run('chown -R %s:%s %s' % (server_groupname, server_groupname, webapps_location))
 
-# }}}
 
 
-def configure_python_virtualenv(target_host): # {{{
+
+def configure_python_virtualenv(target_host): 
     """
     Add virtualenv capabilites to this user.
     
@@ -717,15 +706,15 @@ def configure_python_virtualenv(target_host): # {{{
     run('echo \'export VIRTUALENV_USE_DISTRIBUTE=1\' >> ~/.bashrc')
     run('echo \'source /usr/local/bin/virtualenvwrapper.sh\' >> ~/.bashrc')
 
-# }}}
-# }}}
+
+
 
 
 # SUPPORT TASKS
 ################################################################
 # Modular and repeatable helpers that other tasks can use
 
-def regen_tarball(srcdir, source): # {{{
+def regen_tarball(srcdir, source): 
     """
     Generate a tarball of a config dir
 
@@ -748,7 +737,7 @@ def regen_tarball(srcdir, source): # {{{
             with lcd(srcdir):
                 local('tar -czf '+target+' '+source+'')
 
-def regen_tarballs(): # {{{
+def regen_tarballs(): 
     """
     Tarball the config tarballs for ease of upload
 
@@ -772,20 +761,20 @@ def regen_tarballs(): # {{{
     for config in configs:
         regen_tarball(source=config['source'], srcdir=config['srcdir'])
 
-# }}}
-def docs(): # {{{
+
+def docs(): 
     """
     Regenerate the sphinx based documentation for this fabfile
     """
     with lcd('../sphinx-docs'):
         local('rm -rf ../docs/ && yes "" | sphinx-build -b html . ../docs')
 
-# }}}
 
-# }}}
+
+
 
 # Tests 
-def test_local(): # {{{
+def test_local(): 
     """
     Test echo on localhost. Reports the git user settings and the environment $SHELL variable.
     """
@@ -793,8 +782,8 @@ def test_local(): # {{{
     local("echo 'Git User: "+git_username+"'")
     local('echo "Current Shell: $SHELL"')
 
-# }}}
-def test_remote(user='root'): # {{{
+
+def test_remote(user='root'): 
     """
     Test a remote host, takes user account login name as a single argument
     """
@@ -804,10 +793,10 @@ def test_remote(user='root'): # {{{
     run("echo 'Git User: "+git_username+"'")
     run('echo "Current Shell: $SHELL"')
 
-# }}}
+
 
 # Cleaning
-def clean(keys=False): # {{{
+def clean(keys=False): 
     """
     This is more like make clean. This deletes all the custom config files generated by regen_configs()
     """
@@ -831,26 +820,26 @@ def clean(keys=False): # {{{
     if keys:
         local('rm -rf '+local_config_dir+'/keys/shell/*')
 
-# }}}
-def clean_remote_config_dir(): # {{{
+
+def clean_remote_config_dir(): 
     """
     Remove the main configuration uploads dir
     """
     env.host_string = root_host
 
     run('if [ -e '+remote_config_dir+' ]; then rm -rf '+remote_config_dir+'; fi')
-# }}}
-def clean_remote_backup_dir(): # {{{
+
+def clean_remote_backup_dir(): 
     """
     Remove the main remote backup dir
     """
     env.host_string = root_host
 
     run('if [ -e '+remote_backup_dir+' ]; then rm -rf '+remote_backup_dir+'; fi')
-# }}}
+
 
 # User and Permissions Helpers
-def configure_restricted_share(user, group, d): # {{{
+def configure_restricted_share(user, group, d): 
     """
     Set group ownership of a directory
 
@@ -863,8 +852,8 @@ def configure_restricted_share(user, group, d): # {{{
     run('chown '+user+'.'+group+' '+d)
     run('chmod g+w '+d)
 
-# }}}
-def configure_open_share(user, group, d): # {{{
+
+def configure_open_share(user, group, d): 
     """
     Recursively set and enforce group ownership of a directory
 
@@ -878,8 +867,8 @@ def configure_open_share(user, group, d): # {{{
     run('chmod -R g+w '+d)
     run('find '+d+' -type d -exec chmod g+s "{}" +')
 
-# }}}
-def clone_root_pubkey(user, home): # {{{
+
+def clone_root_pubkey(user, home): 
     """
     Copy pubkey from root to avoid password prompt
 
@@ -891,8 +880,8 @@ def clone_root_pubkey(user, home): # {{{
     run('mkdir -p '+home+'/.ssh')
     run('cp /root/.ssh/authorized_keys '+home+'/.ssh/authorized_keys')
     run('chown -R '+user+'.'+user+' '+home+'/.ssh')
-# }}}
-def add_custom_user(user, passw, fancy=True): # {{{
+
+def add_custom_user(user, passw, fancy=True): 
     """
     Add a user with a preconfigured home directory
 
@@ -904,8 +893,8 @@ def add_custom_user(user, passw, fancy=True): # {{{
     run('useradd --skel '+remote_config_dir+'/skel --create-home --home-dir /home/'+user+' --shell /bin/bash '+user)
     run('yes "'+passw+'" | passwd ' + user)
 
-# }}}
-def add_prompt_to_user(home='/root', user='root'): # {{{
+
+def add_prompt_to_user(home='/root', user='root'): 
     """
     Add an awesomely cool shell prompt for a user 
 
@@ -951,8 +940,8 @@ def select_prompt(name='remote_root', host=root_host):
     # choose the root prompt instead of the user prompt
     run("echo 'export PS1=$"+name+"' > ~/.bash_prompt")
 
-# }}}
-def backup_user_home(user): # {{{
+
+def backup_user_home(user): 
     """
     Backup a users home dir to the backup dir
 
@@ -968,8 +957,8 @@ def backup_user_home(user): # {{{
                 with cd('/home'):
                     run('tar -czf '+bak_file+' '+user)
 
-# }}}
-def restore_user_home(user): # {{{
+
+def restore_user_home(user): 
     """
     Restore a user's original home directory from the backup dir
 
@@ -986,8 +975,8 @@ def restore_user_home(user): # {{{
                     run('rm -rf '+user)
                     run('tar -xzf '+bak_file)
 
-# }}}
-def reskel_existing_user(user, home=''): # {{{
+
+def reskel_existing_user(user, home=''): 
     """
     Add custom user configuration to an existing user
 
@@ -1011,8 +1000,11 @@ def reskel_existing_user(user, home=''): # {{{
         put(f, home)
 
     run('chown -R '+user+'.'+user+' '+home)
-# }}}
 
+
+
+# nginx/apache/django setup
+            
 def set_fqdn():
     env.host_string = root_host
     fqdn = server_hostname + '.' + server_domain
@@ -1119,7 +1111,7 @@ def install_django_app_config_file(virtual_environment_name):
     env.host_string = root_host
     config_file_name = appname + '.config'
     config_path = webapps_location+'/'+virtual_environment_name+'/'+config_file_name
-    put(local_path=config_file_path, remote_path=config_path)
+    put(local_path=local_config_file_path, remote_path=config_path)
     set_user_and_group(server_groupname, server_groupname, config_path)
 
 def clean_django_app_config_file(virtual_environment_name):
@@ -1139,12 +1131,10 @@ def make_keyczar_keys(virtual_environment_name,env_path):
 def clean_keyczar_keys(virtual_environment_name):
     env.host_string = root_host 
     run('rm -rf '+webapps_location+'/'+virtual_environment_name+'/'+appname+'/keys')
-    
 
 def setup_apache_logs():
     env.host_string = root_host
     set_user_and_group(server_groupname, server_groupname, '/var/log/apache2')
-
 
 def sshagent_run(cmd):
     """
