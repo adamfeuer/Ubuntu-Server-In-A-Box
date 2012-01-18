@@ -2,7 +2,7 @@ Ubuntu-Server-in-a-Box
 ======================
 
 This will set up an Ubuntu 11.10 Server base installation with
-everything needed to run Django backed by Postgres database, running
+everything needed to run Django backed by a Postgres database, running
 in a virtual environment.
 
 It assumes the Django app conforms to Lincoln Loop best practices for
