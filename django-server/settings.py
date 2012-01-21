@@ -1,0 +1,110 @@
+# These settings are listed in what I believe to be an order
+# that reflects the settings most likely to change.
+# Full documentation in docs/settings.html
+
+# You should at least provide a hostname in FQDN format!
+#################################################################
+# Something like server_hostname  = 'rainmaker.wonderwidget.dyndns.org'
+server_hostname  = 'test0'
+server_domain  = 'dev'
+
+# You probably also want to change these settings
+#################################################################
+main_username    = 'admin1' # this is the sudo user
+
+main_password    = 'password'
+deploy_password  = 'password'
+team_password    = 'password'
+
+team_users       = [ ]
+
+#virtual_environments = ['research.liveingreatness.com', 'research-staging.liveingreatness.com']
+site_name = 'test0.dev'
+staging_site_name = 'test0-staging.dev'
+server_ip_address = '192.168.0.244'
+appname = 'surveytool'
+virtual_environments = ['research.liveingreatness.com']
+git_repo = 'git://github.com/adamfeuer/surveytool.git'
+local_config_file_path = '~/.surveytoolrc'
+
+# SSL cert settings
+ssl_organization_name = "Team Team Research"
+ssl_contact = "postmaster@liveingreatness.com"
+
+# You can probably leave the rest of these settings alone
+#################################################################
+single_user_mode = False
+
+# Hostname setting is required (don't touch this)
+#################################################################
+# original panic mode
+#import sys
+#if not len(server_hostname) and len(server_domain)):
+#    sys.exit()
+
+# graceful mode
+from fabric.api import *
+if not len(server_domain):
+
+    if not len(server_hostname):
+        print """
+            It  looks like  this is  the first  time
+            you've run this  program. To get started
+            you'll  need root access and a  hostname
+
+            Your hostname must be in FQDN format.
+
+            TO MAKE THIS MESSAGE GO AWAY:
+                * Put your hostname in settings.py
+
+        """
+
+        server_hostname = prompt(
+            'What is your hostname?', 
+            default='rainmaker.wonderwidget.dyndns.org',
+            validate=r'^([-a-zA-Z_]+?\.)+([-a-zA-Z_]+)$')
+        server_domain = server_hostname.partition('.')[2]
+        server_fqdn   = server_hostname
+    else:
+        server_domain = server_hostname.partition('.')[2]
+        
+    server_fqdn   = server_hostname
+
+else:
+    server_fqdn = server_hostname+'.'+server_domain
+
+# You can probably leave the rest of these settings alone
+#################################################################
+team_groupname   = 'webdevelopers'
+deploy_username  = 'deploy'
+
+team_sudo_cmds = [
+    "/usr/sbin/a2ensite",
+    "/usr/sbin/a2dissite",
+    "/usr/sbin/a2enmod",
+    "/usr/sbin/a2dismod",
+    "/usr/sbin/service nginx start",
+    "/usr/sbin/service nginx stop",
+    "/usr/sbin/service nginx restart",
+    "/usr/sbin/service apache2 restart",
+    "/usr/sbin/service apache2 reload",
+    "/usr/sbin/service apache2 start",
+    "/usr/sbin/service apache2 stop"
+]
+
+import os
+local_backup_dir  = os.path.abspath('./.bak')
+local_tar_dir     = os.path.abspath('./.tarballs')
+local_config_dir  = os.path.abspath('./conf')
+
+remote_backup_dir = '/var/dumps/django-server-fabfile'
+remote_config_dir = '/var/local/django-server-fabfile'
+
+server_groupname       = 'www-data'
+
+webroot_dir            = '/var/www'
+webapps_location       = '/opt/webapps'
+virtual_environments_location       = '~/.virtualenvs'
+
+
+
