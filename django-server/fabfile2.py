@@ -99,10 +99,10 @@ def dev():
     """
     env.settings = 'test'
     env.manage_settings = 'conf.dev.settings'
-    env.server_hostname = 'test1'
+    env.server_hostname = 'test2'
     env.server_domain = 'dev'
-    env.hosts = ['test1.dev'] 
-    env.server_ip_address = '192.168.0.245'
+    env.hosts = ['test2.dev'] 
+    env.server_ip_address = '192.168.0.246'
     common_environment_settings()
 
 def common_environment_settings():
@@ -169,7 +169,7 @@ def setup_directories():
     
 def setup_virtualenv():
     """
-<    Setup a fresh virtualenv.
+    Setup a fresh virtualenv.
     """
     sshagent_run('virtualenv -p %(python)s --no-site-packages %(env_path)s;' % env)
     sshagent_run('source %(env_path)s/bin/activate; easy_install -U setuptools; easy_install pip;' % env)
@@ -227,7 +227,7 @@ def maintenance_up():
     sudo('cp %(proj_root)s/apache/%(hostname)s-maintenance %(apache_config_path)s/%(hostname)s' % env)
     restart()
 
-def restart(): 
+def restart_apache(): 
     """
     Restart the Apache2 server.
     """
@@ -238,7 +238,7 @@ def maintenance_down():
     Reinstall the normal site configuration.
     """
     install_apache_conf()
-    restart()
+    restart_apache()
     
 """
 Commands - rollback
@@ -340,7 +340,7 @@ def shiva_the_destroyer():
         sshagent_run('dropdb %(project_name)s' % env)
         sshagent_run('dropuser %(project_name)s' % env)
         sudo('rm %(apache_config_path)s' % env)
-        restart()
+        restart_apache()
 
 """
 Commands - operating system setup
@@ -349,34 +349,25 @@ Shortcuts - tasks that call the high level generic tasks below
 
 """
 
-def server_setup(update=True): 
+def setup_server(update=True): 
     """
     Bootstrap an entire server from a blank Ubuntu 11.10 Server distro
     """
-    server_setup_init(update)
-    #setup_users()
+    setup_server_init(update)
+    setup_users()
     #setup_web_server()
 
 
-def server_setup_init(update=True): 
-    # Preparation
-    # ---------------------------------------------------
+def setup_server_init(update=True): 
     # install the root user, config and working dirs
     init_system()
     install_master_users()
-
-    # this is basically a dependency actually
-    # because it has add-apt-repository
     aptget_misc_deps()
-
-    # Install security updates
     if update:
         aptget_software_updates()
-
     aptget_compiler()
     aptget_common_dev_headers()
     aptget_git()
-
 
 def setup_web_server(): 
     """
@@ -394,14 +385,12 @@ def setup_web_server():
 
 def clean_all(): 
     """
-    Sort of like make clean but more like uninstall.
-
     This tries to remove all custom configs, delete 
     all users, and restore original configs from the 
     backups made by this script.
     """
     clean()
-    clean_users()
+    clean_team_users()
     clean_webroot()
     clean_apache()
     clean_nginx()
@@ -425,11 +414,11 @@ def init_system():
     regen_tarballs()
     init_root_user();
 
-    with settings(hide('warnings'), warn_only=True, host_string='root@%(hostname)s' % env):
-        local('mkdir -p '+env.local_backup_dir)
-        local('mkdir -p '+env.local_tar_dir)
-        run('mkdir -p '+env.remote_backup_dir)
-        run('mkdir -p '+env.remote_config_dir)
+    with settings(hide('warnings'), warn_only=True, user='root'):
+        local('mkdir -p %(local_backup_dir)s' % env)
+        local('mkdir -p %(local_tar_dir)s' % env)
+        run('mkdir -p %(remote_backup_dir)s' % env)
+        run('mkdir -p %(remote_config_dir)s' % env)
 
 
 def setup_users(): 
@@ -437,17 +426,15 @@ def setup_users():
     Install basic user accounts
     """
     install_etc_skel()
-    #install_team_users()
-    #install_team_sudoers()
-
-
+    install_team_users()
+    install_team_sudoers()
 
 # Web Servers
 def setup_apache(): 
     """
     Installs and configures Apache HTTPD
     """
-    aptget_lamp()
+    aptget_apache()
     a2enmod_rewrite()
     a2enmod_proxy()
     a2enmod_wsgi()
@@ -487,7 +474,7 @@ def setup_python():
 # Stuff that actually does the work
 
 # Core Configuration
-# Users {{{
+# Users
 # root
 def init_root_user(): 
     """
@@ -511,7 +498,7 @@ def install_master_users():
     """
     Install deploy and main users
     """
-    with settings(host_string='root@%(hostname)s' % env):
+    with settings(user='root'):
        add_custom_user(env.deploy_username, env.deploy_password)
        add_custom_user(env.main_username, env.main_password)
        # same login as root
@@ -544,64 +531,48 @@ def install_team_users():
     accounts, then set up each initial user account with
     proper group and permissions to work on the same files
     """
-    env.host_string = root_host
-
-    run('addgroup '+team_groupname)
-
-    run('adduser '+deploy_username+' '+team_groupname)
-    run('adduser '+deploy_username+' '+server_groupname)
-    if single_user_mode:
-        run('adduser '+server_groupname+' '+team_groupname)
-    else:
-        run('adduser '+main_username+' '+team_groupname)
-        run('adduser '+main_username+' '+server_groupname)
-
-    for name in team_users:
-        add_custom_user(name, team_password)
-        run('adduser '+name+' '+server_groupname)
-        run('adduser '+name+' '+team_groupname)
-
+    sudo('addgroup %(team_groupname)s' % env)
+    sudo('adduser %(deploy_username)s %(team_groupname)s' % env)
+    sudo('adduser %(deploy_username)s %(server_groupname)s' % env)
+    sudo('adduser %(main_username)s %(team_groupname)s' % env)
+    sudo('adduser %(main_username)s %(server_groupname)s' % env)
+    for name in env.team_users:
+        add_custom_user(name, env.team_password)
+        with settings(team_user_name=name):
+            sudo('adduser %(team_user_name)s %(server_groupname)s' % env)
+            sudo('adduser %(team_user_name)s %(team_groupname)s' % env)
 
 def clean_team_users(): 
     """
     Remove any team user accounts
     """
-    env.host_string = root_host
-
     with settings(hide('warnings'), warn_only=True):
-        run('deluser '+deploy_username)
-        run('deluser '+main_username)
-        run('rm -rf /home/'+deploy_username)
-        run('rm -rf /home/'+main_username)
-
-        for name in team_users:
-            run('deluser '+name)
-            run('rm -rf /home/'+name)
-
-
-
+        for name in env.team_users:
+            sudo('deluser %s' % name)
+            sudo('rm -rf /home/%s' % name)
+        sudo('delgroup %(team_groupname)s' % env)
+            
 # sudoers
 def install_team_sudoers(): 
     """
     Give team members some limited webserver related priviliges
-
-    Install our own custom sudoers config for the team to
-    allow team members to stop and start the web server.
     """
-    alias_list  = ','.join(team_sudo_cmds)
-    cmd_alias   = 'Cmnd_Alias WEB_SERVER_CMDS = '+alias_list
-    sudoer_line = '%'+team_groupname+' ALL=(ALL) NOPASSWD: WEB_SERVER_CMDS'
+    alias_list  = ','.join(env.team_sudo_cmds)
+    cmd_alias   = 'Cmnd_Alias WEB_SERVER_CMDS = %s' % alias_list
+    sudoer_line = '%(team_groupname)s ALL=(ALL) NOPASSWD: WEB_SERVER_CMDS' % env
 
-    run("echo '"+cmd_alias+"' > /etc/sudoers.d/"+team_groupname)
-    run("echo '"+sudoer_line+"' >> /etc/sudoers.d/"+team_groupname)
-    run("chmod 440 /etc/sudoers.d/"+team_groupname)
-
+    with settings(cmd_alias=cmd_alias, sudoer_line=sudoer_line):
+        sudo("echo '%(cmd_alias)s' > /tmp/%(team_groupname)s" % env)
+        sudo("echo '%(sudoer_line)s' >> /tmp/%(team_groupname)s" % env)
+        sudo("chmod 440 /tmp/%(team_groupname)s" % env)
+        sudo("chown root:root /tmp/%(team_groupname)s" % env)
+        sudo("mv /tmp/%(team_groupname)s /etc/sudoers.d" % env)
 
 def clean_team_sudoers(): 
     """
     Remove the extra team privileges
     """
-    run('if [ -e /etc/sudoers.d/'+team_groupname+' ]; then rm -rf /etc/sudoers.d/'+team_groupname+'; fi')
+    sudo('rm -rf /etc/sudoers.d/%(team_groupname)s' % env)
 
 
 # home skeleton
@@ -609,10 +580,12 @@ def install_etc_skel():
     """
     Uploads the new user skeleton directory to the remote_config_dir
     """
-    put(local_tar_dir+'/skel.tar.gz', env.remote_config_dir)
+    with settings(user = 'root'):
+        put('%(local_tar_dir)s/skel.tar.gz' % env, env.remote_config_dir)
     with cd(env.remote_config_dir):
-        run('tar -zxf skel.tar.gz')
-        run('rm -rf skel.tar.gz')
+        sudo('tar -zxf skel.tar.gz')
+
+        sudo('rm -rf skel.tar.gz')
 
 
 def clean_etc_skel(): 
@@ -622,11 +595,7 @@ def clean_etc_skel():
     Removes the skeleton from the config directory. Maybe don't need
     this since we've got a clean config task already?
     """
-    env.host_string = root_host
-
-    run('rm -rf '+remote_config_dir+'/skel')
-
-
+    sudo('rm -rf %(remote_config_dir)s/skel' % env)
 
 
 # Servers 
@@ -718,12 +687,6 @@ def install_apache_config():
         configure_restricted_share('root', team_groupname, '/etc/apache2/sites-available')
 
 
-
-def restart_apache():
-    env.host_string = root_host
-    run('service apache2 restart')
-
-        
 def backup_nginx_config(): 
     """
     Backs up the nginx configuration dir into the backup directory
@@ -821,7 +784,7 @@ def aptget_databases():
     sudo('yes | apt-get install mysql-server mysql-client postgresql sqlite sqlite3')
 
 
-def aptget_lamp(): 
+def aptget_apache(): 
     """
     Install Apache along with wsgi
     """
@@ -916,9 +879,8 @@ def install_python_pip():
     """
     Download and install a recent version of the pip utility
     """
-    env.host_string = root_host
     the_file = pip_vers + '.tar.gz'
-    run('wget ' + pip_url)
+    sudo('wget ' + pip_url)
 
     with settings(warn_only=True):
         md5_compute = run('md5sum '+the_file)
@@ -927,31 +889,27 @@ def install_python_pip():
     if result.failed and not confirm("Bad pip tarball. `Continue anyway?"):
         abort("Aborting at user request.")
 
-    run('tar -zxf ' + the_file)
+    sudo('tar -zxf ' + the_file)
     with cd(pip_vers):
-        run('python setup.py install')
+        sudo('python setup.py install')
 
 
 def install_python_virtualenv(): 
     """
     Install virtualenv and virtual env wrapper from pip
     """
-    env.host_string = root_host
-    run('pip install virtualenv virtualenvwrapper')
+    sudo('pip install virtualenv virtualenvwrapper')
 
 
 def setup_webapps_location(): 
     """
     Make the webapps location
     """
-    env.host_string = root_host
-    run('mkdir -p ' + webapps_location)
-    run('chown -R %s:%s %s' % (server_groupname, server_groupname, webapps_location))
+    sudo('mkdir -p ' + webapps_location)
+    sudo('chown -R %s:%s %s' % (server_groupname, server_groupname, webapps_location))
 
 
-
-
-def configure_python_virtualenv(target_host): 
+def configure_python_virtualenv(): 
     """
     Add virtualenv capabilites to this user.
     
@@ -959,16 +917,11 @@ def configure_python_virtualenv(target_host):
     provide access to ``workon`` and ``mkvirtualenv``. This is
     only applicable on a per user basis.
     """
-    env.host_string = target_host 
     run('mkdir -p '+virtual_environments_location, shell=False)
     run('echo >> ~/.bashrc')
     run('echo \'export WORKON_HOME='+virtual_environments_location+'\' >> ~/.bashrc')
     run('echo \'export VIRTUALENV_USE_DISTRIBUTE=1\' >> ~/.bashrc')
     run('echo \'source /usr/local/bin/virtualenvwrapper.sh\' >> ~/.bashrc')
-
-
-
-
 
 # SUPPORT TASKS
 ################################################################
@@ -1133,15 +1086,16 @@ def clone_root_pubkey(user, home):
     run('cp /root/.ssh/authorized_keys '+home+'/.ssh/authorized_keys')
     run('chown -R '+user+'.'+user+' '+home+'/.ssh')
 
-def add_custom_user(user, passw, fancy=True): 
+def add_custom_user(user, password, fancy=True): 
     """
     Add a user with a preconfigured home directory
 
     Add a user account with a skeleton directory structure
     from the config in the local skel dir
     """
-    run('useradd --skel '+env.remote_config_dir+'/skel --create-home --home-dir /home/'+user+' --shell /bin/bash '+user)
-    run('yes "'+passw+'" | passwd ' + user)
+    with settings(custom_user=user, custom_password=password):
+        sudo('useradd --skel %(remote_config_dir)s/skel --create-home --home-dir /home/%(custom_user)s --shell /bin/bash %(custom_user)s' % env)
+        sudo('yes "%(custom_password)s" | passwd %(custom_user)s' % env)
 
 def backup_user_home(user): 
     """
