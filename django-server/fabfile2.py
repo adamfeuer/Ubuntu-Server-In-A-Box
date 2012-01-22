@@ -375,7 +375,7 @@ def setup_web_server():
     """
     set_fqdn()
     setup_python() # includes virtualenv, django and wsgi
-    #setup_apache()
+    setup_apache()
     #setup_nginx()
     #setup_webapps_location()
     #setup_ssl_cert()
@@ -650,67 +650,57 @@ def backup_apache_config():
     """
     Backs up the apache config to the backup directory
     """
-    env.host_string = root_host
     with settings(hide('warnings'), warn_only=True):
-        if run('[ ! -e '+remote_backup_dir+'/apache2.tar.gz ]').succeeded:
+        if sudo ('[ ! -e %(remote_backup_dir)s/apache2.tar.gz ]' % env).succeeded:
             with cd('/etc'):
-                run('tar -czf '+remote_backup_dir+'/apache2.tar.gz apache2')
+                sudo('tar -czf %(remote_backup_dir)s/apache2.tar.gz apache2' % env)
 
 def restore_apache_config(): 
     """
     Restore original apache config from backup if the backup exists
     """
-    env.host_string = root_host
-
     with settings(hide('warnings'), warn_only=True):
-        if run('[ -e '+remote_backup_dir+'/apache2.tar.gz ]').succeeded:
+        if sudo('[ -e %(remote_backup_dir)s/apache2.tar.gz ]' % env).succeeded:
             # remove custom apache config
-            run('rm -rf /etc/apache2')
-            run('mv '+remote_backup_dir+'/apache2.tar.gz /etc')
+            sudo('rm -rf /etc/apache2')
+            sudo('mv %(remote_backup_dir)s/apache2.tar.gz /etc' % env)
             with cd('/etc'):
-                run('tar -zxf apache2.tar.gz')
-                run('rm -rf apache2.tar.gz')
+                sudo('tar -zxf apache2.tar.gz')
+                sudo('rm -rf apache2.tar.gz')
 
 def install_apache_config(): 
     """
     Setup Apache config files
     """
-    env.host_string = root_host
     backup_apache_config()
-    put(local_path="conf/wsgi/ports.conf", remote_path="/etc/apache2")
+    with settings(user='root'):
+        put(local_path="conf/wsgi/apache/ports.conf", remote_path="/etc/apache2")
     # re-chown the webroot since we uploaded localhost as root
-    configure_open_share(deploy_username, server_groupname, webroot_dir)
+    configure_open_share(env.deploy_username, env.server_groupname, env.webroot_dir)
     # allow team and or admins to add and edit vhosts
-    if single_user_mode:
-        configure_open_share(deploy_username, team_groupname, '/etc/apache2/sites-available')
-    else:
-        configure_restricted_share('root', team_groupname, '/etc/apache2/sites-available')
-
+    configure_restricted_share('root', env.team_groupname, '/etc/apache2/sites-available')
+    sudo("echo 'ServerName %(hostname)s' > /etc/apache2/conf.d/fqdn" % env)
 
 def backup_nginx_config(): 
     """
     Backs up the nginx configuration dir into the backup directory
     """
-    env.host_string = root_host
-
-    if run('[ ! -e '+remote_backup_dir+'/nginx.tar.gz ]').succeeded:
+    if sudo('[ ! -e %(remote_backup_dir)s/nginx.tar.gz ]' % env).succeeded:
         with cd('/etc'):
-            run('tar -czf '+remote_backup_dir+'/nginx.tar.gz nginx')
+            sudo('tar -czf %(remote_backup_dir)s/nginx.tar.gz nginx' % env)
 
 def restore_nginx_config(): 
     """
     Restore original nginx config from backup if the backup exists
     """
-    env.host_string = root_host
-
     with settings(hide('warnings'), warn_only=True):
-        if run('[ -e '+remote_backup_dir+'/nginx.tar.gz ]').succeeded:
+        if sudo('[ -e %(remote_backup_dir)s/nginx.tar.gz ]' % env).succeeded:
             # remove custom apache config
-            run('rm -rf /etc/nginx')
-            run('mv '+remote_backup_dir+'/nginx.tar.gz /etc')
+            sudo('rm -rf /etc/nginx')
+            sudo('mv %(remote_backup_dir)s/nginx.tar.gz /etc' % env)
             with cd('/etc'):
-                run('tar -zxf nginx.tar.gz')
-                run('rm -rf nginx.tar.gz')
+                sudo('tar -zxf nginx.tar.gz')
+                sudo('rm -rf nginx.tar.gz')
 
 def install_nginx_config(): 
     """
@@ -718,7 +708,6 @@ def install_nginx_config():
     Apache running on port 9000
 
     """
-    env.host_string = root_host
     backup_nginx_config()
     site_avail_file = '/etc/nginx/sites-available/'+site_name
     with cd('/etc/nginx'):
@@ -915,11 +904,11 @@ def configure_python_virtualenv():
     provide access to ``workon`` and ``mkvirtualenv``. This is
     only applicable on a per user basis.
     """
-    sudo("mkdir -p %(virtual_environments_location)s" % env)
-    sudo("echo >> ~/.bashrc")
-    sudo("echo 'export WORKON_HOME=%(virtual_environments_location)s' >> ~/.bashrc" % env)
-    sudo("echo 'export VIRTUALENV_USE_DISTRIBUTE=1' >> ~/.bashrc")
-    sudo("echo 'source /usr/local/bin/virtualenvwrapper.sh' >> ~/.bashrc")
+    run("mkdir -p %(virtual_environments_location)s" % env)
+    run("echo >> ~/.bashrc")
+    run("echo 'export WORKON_HOME=%(virtual_environments_location)s' >> ~/.bashrc" % env)
+    run("echo 'export VIRTUALENV_USE_DISTRIBUTE=1' >> ~/.bashrc")
+    run("echo 'source /usr/local/bin/virtualenvwrapper.sh' >> ~/.bashrc")
 
 # SUPPORT TASKS
 ################################################################
@@ -1044,33 +1033,21 @@ def clean_remote_backup_dir():
 
 
 # User and Permissions Helpers
-def configure_restricted_share(user, group, d): 
+def configure_restricted_share(user, group, directory): 
     """
     Set group ownership of a directory
-
-    This is the case in which we want users to be able to add
-    files to a directory but not automatically be able to edit
-    or change the contents of that directory.
     """
-    env.host_string = root_host
-
-    run('chown '+user+'.'+group+' '+d)
-    run('chmod g+w '+d)
+    sudo('chown '+user+'.'+group+' '+directory)
+    sudo('chmod g+w '+directory)
 
 
-def configure_open_share(user, group, d): 
+def configure_open_share(user, group, directory): 
     """
     Recursively set and enforce group ownership of a directory
-
-    This is the case where we want all users of the group
-    to always be able to have write permissions on all files
-    in this directory, even new files created by other people.
     """
-    env.host_string = root_host
-
-    run('chown -R '+user+'.'+group+' '+d)
-    run('chmod -R g+w '+d)
-    run('find '+d+' -type d -exec chmod g+s "{}" +')
+    sudo('chown -R '+user+'.'+group+' '+directory)
+    sudo('chmod -R g+w '+directory)
+    sudo('find '+directory+' -type d -exec chmod g+s "{}" +')
 
 
 def clone_root_pubkey(user, home): 
@@ -1215,7 +1192,7 @@ def clean_wsgi_config(env_path):
     
 def set_user_and_group(user, group, path):
     sudo("chown -R %s:%s %s" % (user, group, path))
-    sudo("chmod -R ug+rw " + path)
+    sudo("chmod -R ug+rw %s" % path)
         
 def make_virtual_environment(virtual_env_base_name):
     virtual_env_path = webapps_location + '/' + virtual_env_base_name
@@ -1284,14 +1261,7 @@ def clean_keyczar_keys(virtual_environment_name):
     run('rm -rf '+webapps_location+'/'+virtual_environment_name+'/'+appname+'/keys')
 
 def setup_apache_logs():
-    env.host_string = root_host
-    set_user_and_group(server_groupname, server_groupname, '/var/log/apache2')
-
-
-
-
-
-
+    set_user_and_group(env.server_groupname, env.server_groupname, '/var/log/apache2')
 
 """
 Utility methods
