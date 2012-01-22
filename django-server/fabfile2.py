@@ -108,10 +108,11 @@ def dev():
 def common_environment_settings():
     env.user = env.main_username
     env.hostname = '%(server_hostname)s.%(server_domain)s' % env
+    env.site_name = env.hostname
+    env.staging_site_name = '%(server_hostname)s-staging.%(server_domain)s' % env
     env.env_path = '/opt/webapps/%(hostname)s' % env
     env.log_path = '/opt/webapps/%(hostname)s/logs' % env
     env.proj_root = '%(env_path)s/%(project_name)s' % env
-    env.site_name = env.hostname
     env.server_fqdn = env.hostname
     
 """
@@ -376,11 +377,13 @@ def setup_web_server():
     set_fqdn()
     setup_python() # includes virtualenv, django and wsgi
     setup_apache()
-    #setup_nginx()
-    #setup_webapps_location()
-    #setup_ssl_cert()
+    setup_webapps_location()
+    setup_ssl_cert()
+    setup_nginx()
     #make_virtual_environments()
+      # setup databases
     #install_webroot()
+
 
 
 def clean_all(): 
@@ -709,20 +712,18 @@ def install_nginx_config():
 
     """
     backup_nginx_config()
-    site_avail_file = '/etc/nginx/sites-available/'+site_name
-    with cd('/etc/nginx'):
-        put(local_path = 'conf/wsgi/nginx/nginx.conf', remote_path='/etc/nginx/nginx.conf')
-        put(local_path='conf/wsgi/nginx/app.example.com', remote_path=site_avail_file)
-    run('ln -s /etc/nginx/sites-available/%s /etc/nginx/sites-enabled/%s' % (site_name, site_name))
-    replace_in_file(site_avail_file, 'APP.EXAMPLE.COM', site_name)
-    replace_in_file(site_avail_file, 'APP-STAGING.EXAMPLE.COM', staging_site_name)
-    replace_in_file(site_avail_file, 'SERVER_IP_ADDRESS', server_ip_address)
+    site_avail_file = '/etc/nginx/sites-available/%s' % env.site_name
+    with settings(user='root'):
+        with cd('/etc/nginx'):
+            put(local_path = 'conf/wsgi/nginx/nginx.conf', remote_path='/etc/nginx/nginx.conf')
+            put(local_path='conf/wsgi/nginx/app.example.com', remote_path=site_avail_file)
+    sudo('ln -s /etc/nginx/sites-available/%(site_name)s /etc/nginx/sites-enabled/%(site_name)s' % env)
+    replace_in_file(site_avail_file, 'APP.EXAMPLE.COM', env.site_name)
+    replace_in_file(site_avail_file, 'APP-STAGING.EXAMPLE.COM', env.staging_site_name)
+    replace_in_file(site_avail_file, 'SERVER_IP_ADDRESS', env.server_ip_address)
     
-    if single_user_mode:
-        configure_open_share(deploy_username, team_groupname, '/etc/nginx/sites-available')
-    else:
-        configure_restricted_share('root', team_groupname, '/etc/nginx/sites-available')
-    run('service nginx restart')
+    configure_restricted_share('root', env.team_groupname, '/etc/nginx/sites-available')
+    sudo('service nginx restart')
 
 def upload_website_apache_localhost(): 
     """
@@ -883,26 +884,15 @@ def install_python_pip():
 
 
 def install_python_virtualenv(): 
-    """
-    Install virtualenv and virtual env wrapper from pip
-    """
     sudo('pip install virtualenv virtualenvwrapper')
 
-
 def setup_webapps_location(): 
-    """
-    Make the webapps location
-    """
     sudo('mkdir -p %(webapps_location)s' % env)
     sudo('chown -R %(server_groupname)s:%(server_groupname)s %(webapps_location)s' % env)
 
 def configure_python_virtualenv(): 
     """
     Add virtualenv capabilites to this user.
-    
-    Mostly this just adds the config settings to the ~/.bashrc to
-    provide access to ``workon`` and ``mkvirtualenv``. This is
-    only applicable on a per user basis.
     """
     run("mkdir -p %(virtual_environments_location)s" % env)
     run("echo >> ~/.bashrc")
@@ -1145,17 +1135,16 @@ def set_fqdn():
     sudo("hostname %(server_hostname)s" % env)
 
 def setup_ssl_cert():
-    fqdn = server_hostname + '.' + server_domain
-    env.host_string = root_host
-    run("apt-get install openssl")
-    with cd(webapps_location):
-        run("mkdir ssl")
-        put(local_path="conf/ssl/sslcert.conf", remote_path="%s/ssl" % webapps_location)
-        replace_in_file('ssl/sslcert.conf', 'Example, Inc.', ssl_organization_name)
-        replace_in_file('ssl/sslcert.conf', 'server.example.com', fqdn)
-        replace_in_file('ssl/sslcert.conf', 'postmaster@example.com', ssl_contact)
-        run("openssl req -new -x509 -days 365 -nodes -config ssl/sslcert.conf -out ssl/nginx.pem -keyout ssl/nginx.key")
-        run("chmod 600 ssl/*")
+    sudo("apt-get install openssl")
+    with cd(env.webapps_location):
+        sudo("mkdir ssl")
+        with settings(user='root'):
+            put(local_path="conf/ssl/sslcert.conf", remote_path="%(webapps_location)s/ssl" % env)
+        replace_in_file('ssl/sslcert.conf', 'Example, Inc.', env.ssl_organization_name)
+        replace_in_file('ssl/sslcert.conf', 'server.example.com', env.hostname)
+        replace_in_file('ssl/sslcert.conf', 'postmaster@example.com', env.ssl_contact)
+        sudo("openssl req -new -x509 -days 365 -nodes -config ssl/sslcert.conf -out ssl/nginx.pem -keyout ssl/nginx.key")
+        sudo("chmod 600 ssl/*")
 
 def clean_ssl():
     env.host_string = root_host
