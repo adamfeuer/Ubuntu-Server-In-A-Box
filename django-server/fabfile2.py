@@ -355,7 +355,7 @@ def setup_server(update=True):
     """
     setup_server_init(update)
     setup_users()
-    #setup_web_server()
+    setup_web_server()
 
 
 def setup_server_init(update=True): 
@@ -375,12 +375,12 @@ def setup_web_server():
     """
     set_fqdn()
     setup_python() # includes virtualenv, django and wsgi
-    setup_apache()
-    setup_nginx()
-    setup_webapps_location()
-    setup_ssl_cert()
-    make_virtual_environments()
-    install_webroot()
+    #setup_apache()
+    #setup_nginx()
+    #setup_webapps_location()
+    #setup_ssl_cert()
+    #make_virtual_environments()
+    #install_webroot()
 
 
 def clean_all(): 
@@ -467,7 +467,7 @@ def setup_python():
     install_python_virtualenv()
 
     # setup the deploy user with virtualenv
-    configure_python_virtualenv(target_host)
+    configure_python_virtualenv()
 
 # REAL TASKS
 ################################################################
@@ -870,27 +870,26 @@ def install_python_distribute():
     Install setuptools so we can build pip and other packages.
     I prefer using distribute.
     """
-    env.host_string = root_host
-    run('curl -O http://python-distribute.org/distribute_setup.py')
-    run('python distribute_setup.py')
+    sudo('curl -O http://python-distribute.org/distribute_setup.py')
+    sudo('python distribute_setup.py')
 
 
 def install_python_pip(): 
     """
     Download and install a recent version of the pip utility
     """
-    the_file = pip_vers + '.tar.gz'
-    sudo('wget ' + pip_url)
+    the_file = env.pip_vers + '.tar.gz'
+    sudo('wget %s' % env.pip_url)
 
     with settings(warn_only=True):
-        md5_compute = run('md5sum '+the_file)
-        md5_string  = pip_md5+'  '+the_file
-        result      = run('[ "'+md5_compute+'" = "'+md5_string+'" ]')
+        md5_compute = sudo('md5sum %s' % the_file)
+        md5_string  = '%s  %s' % (env.pip_md5, the_file)
+        result      = sudo('[ "'+md5_compute+'" = "'+md5_string+'" ]')
     if result.failed and not confirm("Bad pip tarball. `Continue anyway?"):
         abort("Aborting at user request.")
 
     sudo('tar -zxf ' + the_file)
-    with cd(pip_vers):
+    with cd(env.pip_vers):
         sudo('python setup.py install')
 
 
@@ -905,9 +904,8 @@ def setup_webapps_location():
     """
     Make the webapps location
     """
-    sudo('mkdir -p ' + webapps_location)
-    sudo('chown -R %s:%s %s' % (server_groupname, server_groupname, webapps_location))
-
+    sudo('mkdir -p %(webapps_location)s' % env)
+    sudo('chown -R %(server_groupname)s:%(server_groupname)s %(webapps_location)s' % env)
 
 def configure_python_virtualenv(): 
     """
@@ -917,11 +915,11 @@ def configure_python_virtualenv():
     provide access to ``workon`` and ``mkvirtualenv``. This is
     only applicable on a per user basis.
     """
-    run('mkdir -p '+virtual_environments_location, shell=False)
-    run('echo >> ~/.bashrc')
-    run('echo \'export WORKON_HOME='+virtual_environments_location+'\' >> ~/.bashrc')
-    run('echo \'export VIRTUALENV_USE_DISTRIBUTE=1\' >> ~/.bashrc')
-    run('echo \'source /usr/local/bin/virtualenvwrapper.sh\' >> ~/.bashrc')
+    sudo("mkdir -p %(virtual_environments_location)s" % env)
+    sudo("echo >> ~/.bashrc")
+    sudo("echo 'export WORKON_HOME=%(virtual_environments_location)s' >> ~/.bashrc" % env)
+    sudo("echo 'export VIRTUALENV_USE_DISTRIBUTE=1' >> ~/.bashrc")
+    sudo("echo 'source /usr/local/bin/virtualenvwrapper.sh' >> ~/.bashrc")
 
 # SUPPORT TASKS
 ################################################################
@@ -1162,11 +1160,12 @@ def reskel_existing_user(user, home=''):
 # nginx/apache/django setup
             
 def set_fqdn():
-    env.host_string = root_host
-    fqdn = server_hostname + '.' + server_domain
-    replace_in_file("/etc/hosts", "ubuntu", "%s %s" % (server_hostname, fqdn))
-    run("echo %s > /etc/hostname" % server_hostname)
-    run("hostname %s" % server_hostname )
+    """
+    Set server's fully-qualified domain name
+    """
+    replace_in_file("/etc/hosts", "ubuntu", "%(server_hostname)s %(hostname)s" % env)
+    sudo("echo %(server_hostname)s > /etc/hostname" % env)
+    sudo("hostname %(server_hostname)s" % env)
 
 def setup_ssl_cert():
     fqdn = server_hostname + '.' + server_domain
@@ -1186,7 +1185,7 @@ def clean_ssl():
     run("rm -rf %s/ssl" % webapps_location )
 
 def replace_in_file(remote_file_path, target, replacement):
-    run("sed -i 's/%s/%s/g' %s" % (target, replacement, remote_file_path))
+    sudo("sed -i 's/%s/%s/g' %s" % (target, replacement, remote_file_path))
     
 def make_virtual_environments(): 
     env.host_string = root_host
