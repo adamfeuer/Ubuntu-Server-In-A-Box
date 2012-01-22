@@ -376,13 +376,13 @@ def setup_web_server():
     """
     set_fqdn()
     setup_python() # includes virtualenv, django and wsgi
-    setup_apache()
+    install_webroot()
     setup_webapps_location()
     setup_ssl_cert()
+    setup_apache()
     setup_nginx()
     #make_virtual_environments()
       # setup databases
-    #install_webroot()
 
 
 
@@ -603,50 +603,28 @@ def clean_etc_skel():
 
 # Servers 
 def backup_webroot(): 
-    """
-    Backs up the webroot if it exists.
-
-    Title should be self explanatory, this backs up the main server
-    webroot directory if it exists.
-    """
-    env.host_string = root_host
-
     with settings(hide('warnings'), warn_only=True):
-        if len(webroot_dir) and run('[ -e '+webroot_dir+' ]').succeeded:
-            with cd(webroot_dir):
-                run('tar -czf '+remote_backup_dir+'/webroot.tar.gz ./')
+        if len(env.webroot_dir) and run('[ -e %(webroot_dir)s ]' % env).succeeded:
+            with cd(env.webroot_dir):
+                sudo('tar -czf %(remote_backup_dir)s/webroot.tar.gz ./' % env)
 
 def restore_webroot(): 
-    """
-    Restore original webroot from backup if the backup exists
-    """
-    env.host_string = root_host
-
     with settings(hide('warnings'), warn_only=True):
-        if run('[ -e '+remote_backup_dir+'/webroot.tar.gz ]').succeeded:
-            run('rm -rf '+webroot_dir)
-            run('mkdir -p '+webroot_dir)
-            run('mv '+remote_backup_dir+'/webroot.tar.gz '+webroot_dir)
-            with cd(webroot_dir):
-                run('tar -zxf webroot.tar.gz')
-                run('rm -rf webroot.tar.gz')
+        if run('[ -e %(remote_backup_dir)s/webroot.tar.gz ]' % env).succeeded:
+            sudo('rm -rf %(webroot_dir)s' % env)
+            sudo('mkdir -p %(webroot_dir)s' % env)
+            sudo('mv %(remote_backup_dir)s/webroot.tar.gz %(webroot_dir)s' % env)
+            with cd(env.webroot_dir):
+                sudo('tar -zxf webroot.tar.gz')
+                sudo('rm -rf webroot.tar.gz')
 
 def install_webroot(): 
-    """
-    Create initial webroot directory layout for Apache and Django
-
-    The currently installed folders are
-
-    * ``webroot/apache``
-    """
-    env.host_string = root_host
-
     backup_webroot()
-    run('if [ -e "'+webroot_dir+'" ]; then rm -rf '+webroot_dir+'; fi')
-    run('mkdir -p '+webroot_dir+'/apache')
+    sudo('rm -rf %(webroot_dir)s' % env)
+    sudo('mkdir -p %(webroot_dir)s/apache' % env)
 
     # allow team and web server to edit files in webroot
-    configure_open_share(deploy_username, server_groupname, webroot_dir)
+    configure_open_share(env.deploy_username, env.server_groupname, env.webroot_dir)
 
 
 def backup_apache_config(): 
