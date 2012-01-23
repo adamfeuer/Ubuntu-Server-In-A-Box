@@ -20,7 +20,7 @@ env.team_password    = 'password'
 env.appname = 'surveytool'
 env.virtual_environments = ['research.liveingreatness.com']
 env.git_repo = 'git://github.com/adamfeuer/surveytool.git'
-env.local_config_file_path = '~/.surveytoolrc'
+env.local_config_file_path = '~/.virtualenvs/surveytool/surveytool.config'
 
 env.ssl_organization_name = "Team Team Research"
 env.ssl_contact = "postmaster@liveingreatness.com"
@@ -381,7 +381,7 @@ def setup_web_server():
     setup_ssl_cert()
     setup_apache()
     setup_nginx()
-    #make_virtual_environments()
+    make_virtual_environments()
       # setup databases
 
 
@@ -1132,42 +1132,39 @@ def replace_in_file(remote_file_path, target, replacement):
     sudo("sed -i 's/%s/%s/g' %s" % (target, replacement, remote_file_path))
     
 def make_virtual_environments(): 
-    env.host_string = root_host
-    for virtual_environment_name in virtual_environments:
+    for virtual_environment_name in env.virtual_environments:
         env_path = make_virtual_environment(virtual_environment_name)
         with cd(env_path):
-            run('mkdir logs')
-            run('mkdir apache')
+            sudo('mkdir logs')
+            sudo('mkdir apache')
         install_wsgi_config(virtual_environment_name, env_path)
         source_path = clone_repo(env_path)
         install_virtual_env_requirements(env_path, source_path)
         install_django_app_config_file(virtual_environment_name)
         make_keyczar_keys(virtual_environment_name, env_path)
         setup_apache_wsgi(virtual_environment_name)
-    set_user_and_group(server_groupname, server_groupname, webapps_location)
+    set_user_and_group(env.server_groupname, env.server_groupname, env.webapps_location)
 
 def install_wsgi_config(virtual_environment_name, env_path): 
-    env.host_string = root_host
     wsgi_config_path = env_path + "/apache/django.wsgi-%s" % virtual_environment_name
-    put(local_path="conf/wsgi/django.wsgi", remote_path=wsgi_config_path)
+    with settings(user='root'):
+        put(local_path="conf/wsgi/django.wsgi", remote_path=wsgi_config_path)
     replace_in_file(wsgi_config_path, "APP.EXAMPLE.COM", virtual_environment_name)
-    replace_in_file(wsgi_config_path, "APPNAME", appname)
+    replace_in_file(wsgi_config_path, "APPNAME", env.appname)
 
 def clean_wsgi_config(env_path):
-    env.host_string = root_host
-    run ("rm -rf %s/apache" % env_path)
+    sudo ("rm -rf %s/apache" % env_path)
     
 def set_user_and_group(user, group, path):
     sudo("chown -R %s:%s %s" % (user, group, path))
     sudo("chmod -R ug+rw %s" % path)
         
 def make_virtual_environment(virtual_env_base_name):
-    virtual_env_path = webapps_location + '/' + virtual_env_base_name
+    virtual_env_path = env.webapps_location + '/' + virtual_env_base_name
     sudo("virtualenv " + virtual_env_path)
     return virtual_env_path
 
 def clean_virtual_environments():
-    env.host_string = root_host
     for environment in virtual_environments:
         clean_virtual_environment(environment)
 
@@ -1176,56 +1173,50 @@ def clean_virtual_environment(virtual_env_base_name):
     sudo("rm -rf " + virtual_env_path)
 
 def clone_repo(virtual_env_path):
-    env.host_string = root_host
-    source_path = virtual_env_path + '/' + appname
-    run("git clone " + git_repo + ' ' + source_path)
+    source_path = virtual_env_path + '/' + env.appname
+    sudo("git clone " + env.git_repo + ' ' + source_path)
     return source_path
     
 def install_virtual_env_requirements(virtual_env_path, source_path):
-    env.host_string = root_host
-    requirements_file_path = source_path + '/' + "requirements.pip"
-    run("source  " + virtual_env_path + "/bin/activate; pip install -r " + requirements_file_path)
+    requirements_file_path = source_path + '/requirements.pip'
+    sudo("source  " + virtual_env_path + "/bin/activate; pip install -r " + requirements_file_path)
 
 def setup_apache_wsgi(virtual_environment_name):
-    env.host_string = root_host
-    put(local_path="conf/wsgi/app.example.com-apache", remote_path="/etc/apache2/sites-available/%s" % virtual_environment_name)
+    with settings(user='root'):
+        put(local_path="conf/wsgi/apache/app.example.com", remote_path="/etc/apache2/sites-available/%s" % virtual_environment_name)
     apache_site_file = '/etc/apache2/sites-available/%s' % virtual_environment_name
     replace_in_file(apache_site_file, 'APP.EXAMPLE.COM', virtual_environment_name)
-    replace_in_file(apache_site_file, 'APPNAME', appname)
-    run("a2ensite %s" % virtual_environment_name)
-    run("service apache2 reload")
+    replace_in_file(apache_site_file, 'APPNAME', env.appname)
+    sudo("a2ensite %s" % virtual_environment_name)
+    sudo("service apache2 reload")
 
 def clean_apache_wsgi():
-    env.host_string = root_host
     for name in virtual_environments:
         with cd("/etc/apache2/sites-available"):
-            run("a2dissite %s" % name)
-            run("rm %s" % name)
+            sudo("a2dissite %s" % name)
+            sudo("rm %s" % name)
 
 def install_django_app_config_file(virtual_environment_name):
-    env.host_string = root_host
-    config_file_name = appname + '.config'
-    config_path = webapps_location+'/'+virtual_environment_name+'/'+config_file_name
-    put(local_path=local_config_file_path, remote_path=config_path)
-    set_user_and_group(server_groupname, server_groupname, config_path)
+    config_file_name = env.appname + '.config'
+    config_path = env.webapps_location+'/'+virtual_environment_name+'/'+config_file_name
+    with settings(user='root'):
+        put(local_path=env.local_config_file_path, remote_path=config_path)
+    set_user_and_group(env.server_groupname, env.server_groupname, config_path)
 
 def clean_django_app_config_file(virtual_environment_name):
-    env.host_string = root_host
-    config_file_name = appname + '.config'
+    config_file_name = env.appname + '.config'
     config_path = webapps_location+'/'+virtual_environment_name+'/'+config_file_name
-    run('rm -f '+ config_path)
+    sudo('rm -f '+ config_path)
 
 def make_keyczar_keys(virtual_environment_name,env_path):
-    env.host_string = root_host 
-    app_path = env_path+'/'+appname
+    app_path = env_path+'/'+env.appname
     activate_path = env_path+'/bin/activate'
     keyczart_path = app_path+'/bin/keyczart'
     keys_path = app_path+'/keys'
-    run('source ' + activate_path + ' && ' + keyczart_path + ' ' + keys_path)
+    sudo('source ' + activate_path + ' && ' + keyczart_path + ' ' + keys_path)
     
 def clean_keyczar_keys(virtual_environment_name):
-    env.host_string = root_host 
-    run('rm -rf '+webapps_location+'/'+virtual_environment_name+'/'+appname+'/keys')
+    sudo('rm -rf '+env.webapps_location+'/'+virtual_environment_name+'/'+appname+'/keys')
 
 def setup_apache_logs():
     set_user_and_group(env.server_groupname, env.server_groupname, '/var/log/apache2')
